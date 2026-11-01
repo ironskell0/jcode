@@ -1,0 +1,52 @@
+name: Antigravity Termux validation
+
+on:
+  push:
+    branches: [fix/antigravity-schema-termux]
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_BUILD_RUSTC_WRAPPER: ""
+  RUSTUP_TOOLCHAIN: stable
+
+jobs:
+  regression-and-arm64-build:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-unknown-linux-gnu
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: antigravity-arm64
+
+      - name: Run todo.add schema regression test
+        run: >-
+          cargo test --locked -p jcode-provider-gemini-runtime
+          --test every_provider_sends_clean_schemas
+          todo_add_missing_properties_is_repaired_on_gemini_wire_paths
+
+      - name: Build Jcode for Linux ARM64
+        run: cargo build --locked --release --target aarch64-unknown-linux-gnu -p jcode --bin jcode
+
+      - name: Package phone-installable binary
+        run: |
+          mkdir -p dist
+          cp target/aarch64-unknown-linux-gnu/release/jcode dist/jcode-linux-aarch64
+          tar -czf jcode-linux-aarch64.tar.gz -C dist jcode-linux-aarch64
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jcode-linux-aarch64-antigravity-fix
+          path: jcode-linux-aarch64.tar.gz
+          if-no-files-found: error
+          retention-days: 7
