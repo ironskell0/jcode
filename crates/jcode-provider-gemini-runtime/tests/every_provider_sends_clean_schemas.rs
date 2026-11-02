@@ -120,12 +120,12 @@ fn todo_add_missing_properties_is_repaired_on_gemini_wire_paths() {
 fn array_valued_type_count(value: &Value) -> usize {
     match value {
         Value::Object(map) => {
-            if map.get("type").is_some_and(Value::is_array) {
+            let own_type = if map.get("type").is_some_and(Value::is_array) {
                 1
             } else {
                 0
-            }
-                + map.values().map(array_valued_type_count).sum::<usize>()
+            };
+            own_type + map.values().map(array_valued_type_count).sum::<usize>()
         }
         Value::Array(items) => items.iter().map(array_valued_type_count).sum(),
         _ => 0,
@@ -212,6 +212,11 @@ fn todo_nullable_type_unions_are_lowered_for_antigravity_wire_schema() {
     let built = jcode_provider_gemini::build_tools(&tools).expect("Gemini tools");
     let mut wire = serde_json::to_value(&built).expect("serialize Gemini tools");
     let parameters = wire[0]["functionDeclarations"][0]["parameters"].clone();
+    assert_eq!(
+        array_valued_type_count(&parameters),
+        12,
+        "the regression fixture should reproduce every reported proto violation: {parameters}"
+    );
     let normalized = jcode_provider_antigravity::antigravity_compatible_schema(
         &parameters,
         "gemini-3.8-flash-tiered",
@@ -223,22 +228,60 @@ fn todo_nullable_type_unions_are_lowered_for_antigravity_wire_schema() {
         0,
         "Antigravity's protobuf Schema.type must never receive JSON arrays: {wire}"
     );
-    assert_eq!(
-        normalized["properties"]["add"]["items"]["properties"]["waiting_on"]["type"],
-        "array"
-    );
-    assert_eq!(
-        normalized["properties"]["add"]["items"]["properties"]["waiting_on"]["nullable"],
-        true
-    );
-    assert_eq!(
-        normalized["properties"]["add"]["items"]["properties"]["completely_blocked"]["type"],
-        "object"
-    );
-    assert_eq!(
-        normalized["properties"]["add"]["items"]["properties"]["completely_blocked"]["nullable"],
-        true
-    );
+    let nullable_schemas = [
+        (
+            &normalized["properties"]["add"]["items"]["properties"]["waiting_on"],
+            "array",
+        ),
+        (
+            &normalized["properties"]["add"]["items"]["properties"]["completely_blocked"],
+            "object",
+        ),
+        (
+            &normalized["properties"]["add"]["items"]["properties"]["external_blocker"],
+            "object",
+        ),
+        (
+            &normalized["properties"]["add"]["items"]["properties"]["lane_after"],
+            "array",
+        ),
+        (
+            &normalized["properties"]["update"]["items"]["properties"]["waiting_on"],
+            "array",
+        ),
+        (
+            &normalized["properties"]["update"]["items"]["properties"]["completely_blocked"],
+            "object",
+        ),
+        (
+            &normalized["properties"]["update"]["items"]["properties"]["external_blocker"],
+            "object",
+        ),
+        (
+            &normalized["properties"]["update"]["items"]["properties"]["lane_after"],
+            "array",
+        ),
+        (
+            &normalized["properties"]["phases"]["items"]["properties"]["lanes"]["items"]["properties"]["after"],
+            "array",
+        ),
+        (
+            &normalized["properties"]["phases"]["items"]["properties"]["lanes"]["items"]["properties"]["items"]["items"]["properties"]["waiting_on"],
+            "array",
+        ),
+        (
+            &normalized["properties"]["phases"]["items"]["properties"]["lanes"]["items"]["properties"]["items"]["items"]["properties"]["completely_blocked"],
+            "object",
+        ),
+        (
+            &normalized["properties"]["phases"]["items"]["properties"]["lanes"]["items"]["properties"]["items"]["items"]["properties"]["external_blocker"],
+            "object",
+        ),
+    ];
+    for (schema, expected_type) in nullable_schemas {
+        assert_eq!(schema["type"], expected_type, "schema: {schema}");
+        assert_eq!(schema["nullable"], true, "schema: {schema}");
+    }
 }
 
 #[test]
