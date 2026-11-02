@@ -285,6 +285,25 @@ fn todo_nullable_type_unions_are_lowered_for_antigravity_wire_schema() {
 }
 
 #[test]
+fn antigravity_lowers_singleton_type_arrays_without_changing_other_unions() {
+    let schema = serde_json::json!({
+        "type": "object",
+        "properties": {
+            "singleton": { "type": ["string"] },
+            "nullable": { "type": ["string", "null"] }
+        }
+    });
+    let normalized = jcode_provider_antigravity::antigravity_compatible_schema(
+        &schema,
+        "gemini-3.8-flash-tiered",
+    );
+
+    assert_eq!(normalized["properties"]["singleton"]["type"], "string");
+    assert_eq!(normalized["properties"]["nullable"]["type"], "string");
+    assert_eq!(normalized["properties"]["nullable"]["nullable"], true);
+}
+
+#[test]
 fn gemini_sends_a_clean_schema_for_the_hostile_tool() {
     let built = jcode_provider_gemini::build_tools(&hostile_tool()).expect("tools");
     let wire = serde_json::to_value(&built).expect("serialize");

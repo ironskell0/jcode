@@ -580,7 +580,45 @@ pub fn antigravity_dialect(model: &str) -> &'static jcode_schema_dialect::Dialec
 /// resolved model uses. See [`antigravity_dialect`] for the per-upstream rules
 /// and `jcode-schema-dialect` for why the subsets are allow-lists.
 pub fn antigravity_compatible_schema(schema: &Value, model: &str) -> Value {
-    jcode_schema_dialect::normalize(schema, antigravity_dialect(model))
+    let mut schema = jcode_schema_dialect::normalize(schema, antigravity_dialect(model));
+    lower_nullable_schema_types(&mut schema);
+    schema
+}
+
+/// Gemini's function-calling protobuf Schema represents `type` as one enum,
+/// with nullability expressed by a separate `nullable` field. JSON Schema type
+/// unions such as `["array", "null"]` must therefore be lowered before the
+/// request is serialized, including at every nested property/item schema.
+fn lower_nullable_schema_types(schema: &mut Value) {
+    match schema {
+        Value::Array(items) => {
+            for item in items {
+                lower_nullable_schema_types(item);
+            }
+        }
+        Value::Object(object) => {
+            if let Some(Value::Array(types)) = object.get("type") {
+                let non_null_types = types
+                    .iter()
+                    .filter(|value| value.as_str() != Some("null"))
+                    .cloned()
+                    .collect::<Vec<_>>();
+                let nullable = types.iter().any(|value| value.as_str() == Some("null"));
+
+                if non_null_types.len() == 1 && (nullable || types.len() == 1) {
+                    object.insert("type".to_string(), non_null_types[0].clone());
+                    if nullable {
+                        object.insert("nullable".to_string(), Value::Bool(true));
+                    }
+                }
+            }
+
+            for value in object.values_mut() {
+                lower_nullable_schema_types(value);
+            }
+        }
+        _ => {}
+    }
 }
 
 /// Numeric JSON Schema bounds an OpenAI-compatible Antigravity bridge corrupts
