@@ -117,6 +117,130 @@ fn todo_add_missing_properties_is_repaired_on_gemini_wire_paths() {
     }
 }
 
+fn array_valued_type_count(value: &Value) -> usize {
+    match value {
+        Value::Object(map) => {
+            if map.get("type").is_some_and(Value::is_array) {
+                1
+            } else {
+                0
+            }
+                + map.values().map(array_valued_type_count).sum::<usize>()
+        }
+        Value::Array(items) => items.iter().map(array_valued_type_count).sum(),
+        _ => 0,
+    }
+}
+
+#[test]
+fn todo_nullable_type_unions_are_lowered_for_antigravity_wire_schema() {
+    // These are the nullable schema declarations in the real todo tool. The
+    // Gemini `Schema.type` protobuf field is singular, so forwarding any of
+    // these JSON Schema type arrays makes Antigravity reject the whole request.
+    let item_properties = serde_json::json!({
+        "waiting_on": {
+            "type": ["array", "null"],
+            "items": { "type": "string" }
+        },
+        "completely_blocked": {
+            "type": ["object", "null"],
+            "properties": { "reason": { "type": "string" } }
+        },
+        "external_blocker": {
+            "type": ["object", "null"],
+            "properties": {
+                "reason": { "type": "string" },
+                "review_at": { "type": "string" }
+            }
+        }
+    });
+    let patch_properties = {
+        let mut properties = item_properties.clone();
+        properties["lane_after"] = serde_json::json!({
+            "type": ["array", "null"],
+            "items": { "type": "string" }
+        });
+        properties
+    };
+    let phase_item_properties = item_properties.clone();
+    let schema = serde_json::json!({
+        "type": "object",
+        "properties": {
+            "add": {
+                "type": "array",
+                "items": { "type": "object", "properties": patch_properties.clone() }
+            },
+            "update": {
+                "type": "array",
+                "items": { "type": "object", "properties": patch_properties }
+            },
+            "phases": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "lanes": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "after": {
+                                        "type": ["array", "null"],
+                                        "items": { "type": "string" }
+                                    },
+                                    "items": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": phase_item_properties
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    });
+    let tools = vec![ToolDefinition {
+        name: "todo".to_string(),
+        description: "todo schema regression".to_string(),
+        input_schema: schema,
+        defer_loading: false,
+    }];
+    let built = jcode_provider_gemini::build_tools(&tools).expect("Gemini tools");
+    let mut wire = serde_json::to_value(&built).expect("serialize Gemini tools");
+    let parameters = wire[0]["functionDeclarations"][0]["parameters"].clone();
+    let normalized = jcode_provider_antigravity::antigravity_compatible_schema(
+        &parameters,
+        "gemini-3.8-flash-tiered",
+    );
+    wire[0]["functionDeclarations"][0]["parameters"] = normalized.clone();
+
+    assert_eq!(
+        array_valued_type_count(&wire),
+        0,
+        "Antigravity's protobuf Schema.type must never receive JSON arrays: {wire}"
+    );
+    assert_eq!(
+        normalized["properties"]["add"]["items"]["properties"]["waiting_on"]["type"],
+        "array"
+    );
+    assert_eq!(
+        normalized["properties"]["add"]["items"]["properties"]["waiting_on"]["nullable"],
+        true
+    );
+    assert_eq!(
+        normalized["properties"]["add"]["items"]["properties"]["completely_blocked"]["type"],
+        "object"
+    );
+    assert_eq!(
+        normalized["properties"]["add"]["items"]["properties"]["completely_blocked"]["nullable"],
+        true
+    );
+}
+
 #[test]
 fn gemini_sends_a_clean_schema_for_the_hostile_tool() {
     let built = jcode_provider_gemini::build_tools(&hostile_tool()).expect("tools");

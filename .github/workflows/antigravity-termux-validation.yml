@@ -29,11 +29,11 @@ jobs:
         with:
           key: antigravity-arm64
 
-      - name: Run todo.add schema regression test
+      - name: Run Antigravity schema regression test
         run: >-
           cargo test --locked -p jcode-provider-gemini-runtime
           --test every_provider_sends_clean_schemas
-          todo_add_missing_properties_is_repaired_on_gemini_wire_paths
+          todo_nullable_type_unions_are_lowered_for_antigravity_wire_schema
 
       - name: Build Jcode for Linux ARM64
         run: cargo build --locked --release --target aarch64-unknown-linux-gnu -p jcode --bin jcode
