@@ -29,11 +29,14 @@ jobs:
         with:
           key: antigravity-arm64
 
-      - name: Run Antigravity schema regression test
-        run: >-
-          cargo test --locked -p jcode-provider-gemini-runtime
-          --test every_provider_sends_clean_schemas
-          todo_nullable_type_unions_are_lowered_for_antigravity_wire_schema
+      - name: Check Rust formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run shared schema dialect tests
+        run: cargo test --locked -p jcode-schema-dialect
+
+      - name: Run Gemini provider tests
+        run: cargo test --locked -p jcode-provider-gemini-runtime
 
       - name: Build Jcode for Linux ARM64
         run: cargo build --locked --release --target aarch64-unknown-linux-gnu -p jcode --bin jcode

@@ -165,6 +165,62 @@ pub fn apply_with_quirks(schema: &Value, spec: &DialectSpec, quirks: &LearnedQui
     out
 }
 
+/// Lower nullable JSON Schema `type` arrays to Gemini's protobuf `Schema` form.
+///
+/// Gemini represents `type` as one enum and nullability as a separate boolean.
+/// Rewrite `['array', 'null']` to `type: 'array', nullable: true` recursively,
+/// including schemas nested under `items` and `properties`. Singleton type
+/// arrays are reduced to their only type. Multi-type unions without this exact
+/// representable form are left intact rather than silently changing meaning.
+pub fn lower_nullable_type_arrays(schema: &mut Value) {
+    match schema {
+        Value::Array(items) => {
+            for item in items {
+                lower_nullable_type_arrays(item);
+            }
+        }
+        Value::Object(object) => {
+            if let Some(Value::Array(types)) = object.get("type").cloned() {
+                let non_null_types = types
+                    .iter()
+                    .filter(|value| value.as_str() != Some("null"))
+                    .cloned()
+                    .collect::<Vec<_>>();
+                let nullable = types.iter().any(|value| value.as_str() == Some("null"));
+
+                if non_null_types.len() == 1 && (nullable || types.len() == 1) {
+                    object.insert("type".to_string(), non_null_types[0].clone());
+                    if nullable {
+                        object.insert("nullable".to_string(), Value::Bool(true));
+                    }
+                }
+            }
+
+            for (keyword, value) in object.iter_mut() {
+                match keyword_role(keyword) {
+                    KeywordRole::Subschema => lower_nullable_type_arrays(value),
+                    KeywordRole::SubschemaMap => {
+                        if let Value::Object(children) = value {
+                            for child in children.values_mut() {
+                                lower_nullable_type_arrays(child);
+                            }
+                        }
+                    }
+                    KeywordRole::SubschemaArray => {
+                        if let Value::Array(children) = value {
+                            for child in children {
+                                lower_nullable_type_arrays(child);
+                            }
+                        }
+                    }
+                    KeywordRole::Data => {}
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
 fn walk(schema: &Value, spec: &DialectSpec, quirks: &LearnedQuirks) -> Value {
     match schema {
         Value::Object(map) => {
@@ -522,4 +578,38 @@ fn merge_all_of_branches(out: &mut Map<String, Value>) {
     }
     // A branch may have required a name no branch declared.
     prune_dangling_required(out);
+}
+
+#[cfg(test)]
+mod nullable_type_tests {
+    use super::lower_nullable_type_arrays;
+    use serde_json::json;
+
+    #[test]
+    fn lowers_nested_schema_types_without_rewriting_data_values() {
+        let mut schema = json!({
+            "type": "object",
+            "properties": {
+                "nested": {
+                    "type": ["array", "null"],
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "value": { "type": ["string", "null"] }
+                        }
+                    },
+                    "default": { "type": ["array", "null"] }
+                }
+            }
+        });
+
+        lower_nullable_type_arrays(&mut schema);
+
+        let nested = &schema["properties"]["nested"];
+        assert_eq!(nested["type"], "array");
+        assert_eq!(nested["nullable"], true);
+        assert_eq!(nested["items"]["properties"]["value"]["type"], "string");
+        assert_eq!(nested["items"]["properties"]["value"]["nullable"], true);
+        assert_eq!(nested["default"]["type"], json!(["array", "null"]));
+    }
 }

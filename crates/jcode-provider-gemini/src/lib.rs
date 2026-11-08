@@ -469,7 +469,10 @@ pub fn build_tools(tools: &[ToolDefinition]) -> Option<Vec<GeminiTool>> {
 /// allow-list: a deny-list can only contain keywords that have already taken
 /// the provider down for somebody.
 pub fn gemini_compatible_schema(schema: &Value) -> Value {
-    jcode_schema_dialect::normalize(schema, &jcode_schema_dialect::registry::GEMINI)
+    let mut normalized =
+        jcode_schema_dialect::normalize(schema, &jcode_schema_dialect::registry::GEMINI);
+    jcode_schema_dialect::dialect::lower_nullable_type_arrays(&mut normalized);
+    normalized
 }
 
 #[derive(Debug, Clone, Serialize)]

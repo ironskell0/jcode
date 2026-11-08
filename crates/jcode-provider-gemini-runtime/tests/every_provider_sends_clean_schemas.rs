@@ -133,10 +133,10 @@ fn array_valued_type_count(value: &Value) -> usize {
 }
 
 #[test]
-fn todo_nullable_type_unions_are_lowered_for_antigravity_wire_schema() {
+fn todo_nullable_type_unions_are_lowered_for_gemini_wire_schemas() {
     // These are the nullable schema declarations in the real todo tool. The
     // Gemini `Schema.type` protobuf field is singular, so forwarding any of
-    // these JSON Schema type arrays makes Antigravity reject the whole request.
+    // these JSON Schema type arrays makes Gemini reject the whole request.
     let item_properties = serde_json::json!({
         "waiting_on": {
             "type": ["array", "null"],
@@ -217,7 +217,8 @@ fn todo_nullable_type_unions_are_lowered_for_antigravity_wire_schema() {
         0,
         "direct Gemini must lower JSON Schema type unions before sending protobuf Schema.type: {parameters}"
     );
-    let direct_nullable = &parameters["properties"]["phases"]["items"]["properties"]["lanes"]["items"]["properties"]["items"]["items"]["properties"]["waiting_on"];
+    let direct_nullable = &parameters["properties"]["phases"]["items"]["properties"]["lanes"]["items"]
+        ["properties"]["items"]["items"]["properties"]["waiting_on"];
     assert_eq!(direct_nullable["type"], "array");
     assert_eq!(direct_nullable["nullable"], true);
     let normalized = jcode_provider_antigravity::antigravity_compatible_schema(
