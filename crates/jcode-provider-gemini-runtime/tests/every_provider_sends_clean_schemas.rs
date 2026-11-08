@@ -214,9 +214,12 @@ fn todo_nullable_type_unions_are_lowered_for_antigravity_wire_schema() {
     let parameters = wire[0]["functionDeclarations"][0]["parameters"].clone();
     assert_eq!(
         array_valued_type_count(&parameters),
-        12,
-        "the regression fixture should reproduce every reported proto violation: {parameters}"
+        0,
+        "direct Gemini must lower JSON Schema type unions before sending protobuf Schema.type: {parameters}"
     );
+    let direct_nullable = &parameters["properties"]["phases"]["items"]["properties"]["lanes"]["items"]["properties"]["items"]["items"]["properties"]["waiting_on"];
+    assert_eq!(direct_nullable["type"], "array");
+    assert_eq!(direct_nullable["nullable"], true);
     let normalized = jcode_provider_antigravity::antigravity_compatible_schema(
         &parameters,
         "gemini-3.8-flash-tiered",
