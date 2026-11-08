@@ -266,19 +266,23 @@ fn todo_nullable_type_unions_are_lowered_for_gemini_wire_schemas() {
             "array",
         ),
         (
-            &normalized["properties"]["phases"]["items"]["properties"]["lanes"]["items"]["properties"]["after"],
+            &normalized["properties"]["phases"]["items"]["properties"]["lanes"]["items"]["properties"]
+                ["after"],
             "array",
         ),
         (
-            &normalized["properties"]["phases"]["items"]["properties"]["lanes"]["items"]["properties"]["items"]["items"]["properties"]["waiting_on"],
+            &normalized["properties"]["phases"]["items"]["properties"]["lanes"]["items"]["properties"]
+                ["items"]["items"]["properties"]["waiting_on"],
             "array",
         ),
         (
-            &normalized["properties"]["phases"]["items"]["properties"]["lanes"]["items"]["properties"]["items"]["items"]["properties"]["completely_blocked"],
+            &normalized["properties"]["phases"]["items"]["properties"]["lanes"]["items"]["properties"]
+                ["items"]["items"]["properties"]["completely_blocked"],
             "object",
         ),
         (
-            &normalized["properties"]["phases"]["items"]["properties"]["lanes"]["items"]["properties"]["items"]["items"]["properties"]["external_blocker"],
+            &normalized["properties"]["phases"]["items"]["properties"]["lanes"]["items"]["properties"]
+                ["items"]["items"]["properties"]["external_blocker"],
             "object",
         ),
     ];
