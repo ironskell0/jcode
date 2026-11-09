@@ -1773,12 +1773,14 @@ async fn init_provider_with_model_policy(
                 let mut has_openai = availability.has_openai;
                 let mut has_copilot = availability.has_copilot;
                 let has_antigravity = availability.has_antigravity;
+                let has_vertex = availability.has_vertex;
                 let mut has_gemini = availability.has_gemini;
                 let mut has_cursor = availability.has_cursor;
                 let mut has_openrouter = availability.has_openrouter;
                 let mut has_other_provider = has_claude
                     || has_copilot
                     || has_antigravity
+                    || has_vertex
                     || has_gemini
                     || has_cursor
                     || has_openrouter;
@@ -1790,6 +1792,7 @@ async fn init_provider_with_model_policy(
                     || has_claude
                     || has_copilot
                     || has_antigravity
+                    || has_vertex
                     || has_gemini
                     || has_cursor
                     || has_openrouter;
@@ -1802,6 +1805,7 @@ async fn init_provider_with_model_policy(
                     || has_claude
                     || has_copilot
                     || has_antigravity
+                    || has_vertex
                     || has_gemini
                     || has_cursor
                     || has_openrouter;
@@ -1814,6 +1818,7 @@ async fn init_provider_with_model_policy(
                     || has_claude
                     || has_copilot
                     || has_antigravity
+                    || has_vertex
                     || has_gemini
                     || has_cursor
                     || has_openrouter;
@@ -1826,6 +1831,7 @@ async fn init_provider_with_model_policy(
                     || has_claude
                     || has_copilot
                     || has_antigravity
+                    || has_vertex
                     || has_gemini
                     || has_cursor
                     || has_openrouter;
@@ -1843,6 +1849,7 @@ async fn init_provider_with_model_policy(
                     || has_claude
                     || has_copilot
                     || has_antigravity
+                    || has_vertex
                     || has_gemini
                     || has_cursor
                     || has_openrouter;
@@ -1859,6 +1866,7 @@ async fn init_provider_with_model_policy(
                     has_openai,
                     has_copilot,
                     has_antigravity,
+                    has_vertex,
                     has_gemini,
                     has_cursor,
                     has_openrouter,
