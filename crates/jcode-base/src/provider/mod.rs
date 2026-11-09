@@ -1169,7 +1169,7 @@ impl MultiProvider {
                         "Vertex AI credentials not available. Run `jcode login --provider vertex` first."
                     );
                 };
-                vertex.set_model(model).await?;
+                vertex.set_model(model)?;
                 self.set_active_provider(ActiveProvider::Vertex);
                 Ok(())
             }
@@ -1860,7 +1860,7 @@ impl Provider for MultiProvider {
                 .unwrap_or_else(|| "default".to_string()),
             ActiveProvider::Vertex => self
                 .vertex_provider()
-                .and_then(|o| o.model())
+                .map(|o| o.model())
                 .unwrap_or_else(|| "gemini-2.5-flash".to_string()),
             ActiveProvider::Gemini => self
                 .gemini_provider()
@@ -2431,7 +2431,7 @@ impl Provider for MultiProvider {
                 .copilot_provider()
                 .map(|o| o.handles_tools_internally())
                 .unwrap_or(false),
-            ActiveProvider::Antigravity => false,
+            ActiveProvider::Antigravity | ActiveProvider::Vertex => false,
             ActiveProvider::Gemini => false,
             ActiveProvider::Cursor => self
                 .cursor_provider()

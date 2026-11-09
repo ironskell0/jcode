@@ -248,14 +248,15 @@ impl Provider for VertexProvider {
         "Vertex AI"
     }
 
-    fn model(&self) -> Option<String> {
+    fn model(&self) -> String {
         self.model
             .read()
             .ok()
             .map(|m| m.clone())
+            .unwrap_or_else(|| DEFAULT_MODEL.to_string())
     }
 
-    async fn set_model(&self, model: &str) -> Result<()> {
+    fn set_model(&self, model: &str) -> Result<()> {
         let bare = model
             .strip_prefix("vertex:")
             .or_else(|| model.strip_prefix("vertexai:"))
@@ -465,16 +466,16 @@ mod tests {
     fn test_vertex_provider_defaults() {
         let provider = VertexProvider::new();
         assert_eq!(provider.name(), "Vertex AI");
-        assert_eq!(provider.model().as_deref(), Some(DEFAULT_MODEL));
+        assert_eq!(provider.model(), DEFAULT_MODEL);
         let routes = provider.model_routes();
         assert!(!routes.is_empty());
         assert!(routes.iter().any(|r| r.model == DEFAULT_MODEL));
     }
 
-    #[tokio::test]
-    async fn test_vertex_provider_set_model() {
+    #[test]
+    fn test_vertex_provider_set_model() {
         let provider = VertexProvider::new();
-        assert!(provider.set_model("vertex:claude-3-7-sonnet@20250219").await.is_ok());
-        assert_eq!(provider.model().as_deref(), Some("claude-3-7-sonnet@20250219"));
+        assert!(provider.set_model("vertex:claude-3-7-sonnet@20250219").is_ok());
+        assert_eq!(provider.model(), "claude-3-7-sonnet@20250219");
     }
 }

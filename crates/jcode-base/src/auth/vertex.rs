@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use std::io::{self, IsTerminal, Write};
+use std::io::{self, Write};
 
 const GOOGLE_AUTHORIZE_URL: &str = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_USERINFO_URL: &str = "https://www.googleapis.com/oauth2/v1/userinfo?alt=json";
@@ -96,7 +96,7 @@ pub fn load_tokens() -> Result<VertexTokens> {
 
 pub fn save_tokens(tokens: &VertexTokens) -> Result<()> {
     let path = tokens_path()?;
-    crate::storage::write_json_restricted(&path, tokens)?;
+    crate::storage::write_json_secret(&path, tokens)?;
     super::AuthStatus::invalidate_cache();
     Ok(())
 }
@@ -110,13 +110,16 @@ pub async fn load_or_refresh_tokens() -> Result<VertexTokens> {
 }
 
 pub async fn refresh_tokens(tokens: &VertexTokens) -> Result<VertexTokens> {
-    crate::auth::oauth_refresh_coordinator::refresh_oauth_tokens(
-        "vertex",
-        tokens,
+    crate::auth::refresh_coordinator::single_flight(
+        "vertex".to_string(),
+        || load_tokens().ok(),
         |stored: &VertexTokens| !stored.is_expired(),
-        |stored: Option<VertexTokens>| async move {
-            let base = stored.as_ref().unwrap_or(tokens);
-            refresh_tokens_uncoordinated(base).await
+        {
+            let observed = tokens.clone();
+            move |stored: Option<VertexTokens>| async move {
+                let source = stored.unwrap_or(observed);
+                refresh_tokens_uncoordinated(&source).await
+            }
         },
     )
     .await
@@ -227,8 +230,18 @@ pub async fn exchange_callback_input(
     expected_state: Option<&str>,
     redirect_uri: &str,
 ) -> Result<VertexTokens> {
-    let parsed = crate::auth::oauth::parse_callback_input(input, expected_state)?;
-    exchange_code(&parsed.code, verifier, redirect_uri).await
+    let code = if let Some(expected_state) = expected_state {
+        let (code, callback_state) = crate::auth::oauth::parse_callback_input_with_state(input)?;
+        if callback_state != expected_state {
+            anyhow::bail!(
+                "OAuth state mismatch. Start Vertex AI login again and use the latest callback URL."
+            );
+        }
+        code
+    } else {
+        input.trim().to_string()
+    };
+    exchange_code(&code, verifier, redirect_uri).await
 }
 
 pub async fn exchange_callback_code(
@@ -316,7 +329,7 @@ pub async fn login(no_browser: bool) -> Result<VertexTokens> {
 
     let listener = crate::auth::oauth::bind_callback_listener(port)?;
     println!("\nOpening browser for Vertex AI login...\n");
-    let _ = crate::auth::oauth::open_browser(&auth_url);
+    let _ = crate::companion_client::open_url(&auth_url);
 
     let code = crate::auth::oauth::wait_for_callback_async_on_listener(listener, &expected_state).await?;
     exchange_code(&code, &verifier, &redirect).await
