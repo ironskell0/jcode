@@ -1,14 +1,13 @@
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use jcode_message_types::{
-    ConnectionPhase, EventStream, Message, ModelRoute, Provider, StreamEvent, ToolDefinition,
-};
+use jcode_message_types::{ConnectionPhase, Message, StreamEvent, ToolDefinition};
+use jcode_provider_core::{EventStream, ModelRoute, Provider};
 use jcode_provider_gemini::{
     CodeAssistGenerateResponse, GeminiToolConfig, VertexGenerateContentRequest,
 };
 use jcode_provider_vertex::{
-    AVAILABLE_MODELS, DEFAULT_LOCATION, DEFAULT_MODEL, PersistedCatalog,
-    generate_content_api_url, generative_language_models_url, list_project_models_api_url,
+    AVAILABLE_MODELS, DEFAULT_MODEL, PersistedCatalog, generate_content_api_url,
+    generative_language_models_url, list_project_models_api_url,
 };
 use serde_json::{Value, json};
 use std::sync::{Arc, RwLock};
