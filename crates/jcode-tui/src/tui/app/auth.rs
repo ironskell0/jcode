@@ -1905,7 +1905,7 @@ impl App {
             "vertex",
             browser_opened,
             Some(&redirect_uri),
-            callback_available,
+            Some(callback_available),
         );
 
         self.push_display_message(DisplayMessage::system(format!(

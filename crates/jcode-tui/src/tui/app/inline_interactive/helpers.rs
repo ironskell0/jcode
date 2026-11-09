@@ -143,6 +143,7 @@ pub(super) fn picker_route_model_spec(entry: &PickerEntry, route: &PickerOption)
             format!("openai-oauth:{}", bare_name)
         }
         _ if route.provider == "Antigravity" => format!("antigravity:{}", bare_name),
+        _ if route.provider == "Vertex" => format!("vertex:{}", bare_name),
         crate::provider::ModelRouteApiMethod::OpenAiCompatible { .. } => {
             if let Some(profile_id) = openai_compatible_profile_id_for_route(route) {
                 format!("{}:{}", profile_id, bare_name)
