@@ -1257,7 +1257,7 @@ impl ModelRouteApiMethod {
             Self::Copilot => "copilot".to_string(),
             Self::Cursor => "cursor".to_string(),
             Self::Bedrock => "bedrock".to_string(),
-            Self::AntigravityHttps => "https".to_string(),
+            Self::AntigravityHttps | Self::VertexHttps => "https".to_string(),
             Self::RemoteCatalog => "remote-catalog".to_string(),
             Self::Current => "current".to_string(),
             Self::GrokBuild => "grok-build-acp".to_string(),
