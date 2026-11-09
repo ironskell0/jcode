@@ -288,29 +288,14 @@ impl Provider for VertexProvider {
         let models = self.available_models_display();
         models
             .into_iter()
-            .map(|model| {
-                let context_window = if model.contains("gemini-2.5") || model.contains("gemini-3") || model.contains("gemini-4") {
-                    Some(1_000_000)
-                } else if model.contains("claude") {
-                    Some(200_000)
-                } else {
-                    Some(128_000)
-                };
-                ModelRoute {
-                    provider: "Vertex".to_string(),
-                    api_method: "vertex".to_string(),
-                    model: model.clone(),
-                    display_name: format!("Vertex {model}"),
-                    available: true,
-                    detail: "Google Cloud Vertex AI".to_string(),
-                    usage: None,
-                    cheapness: None,
-                    is_default: model == DEFAULT_MODEL,
-                    context_window,
-                    max_output_tokens: Some(65_536),
-                    tags: vec!["google-cloud".to_string(), "vertex".to_string()],
-                    supports_fast: None,
-                }
+            .map(|model| ModelRoute {
+                model,
+                provider: "Vertex".to_string(),
+                api_method: "vertex".to_string(),
+                available: true,
+                detail: "Google Cloud Vertex AI".to_string(),
+                usage: None,
+                cheapness: None,
             })
             .collect()
     }
@@ -450,7 +435,12 @@ impl Provider for VertexProvider {
                 return;
             }
 
-            let _ = tx.send(Ok(StreamEvent::MessageEnd)).await;
+            let stop_reason = candidate
+                .finish_reason
+                .clone()
+                .map(|reason| reason.to_lowercase());
+
+            let _ = tx.send(Ok(StreamEvent::MessageEnd { stop_reason })).await;
         });
 
         Ok(Box::pin(tokio_stream::wrappers::ReceiverStream::new(rx)))
