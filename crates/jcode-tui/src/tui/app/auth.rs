@@ -521,6 +521,9 @@ impl App {
             crate::provider_catalog::LoginProviderTarget::Antigravity => {
                 self.start_antigravity_login()
             }
+            crate::provider_catalog::LoginProviderTarget::Vertex => {
+                self.start_vertex_login()
+            }
             crate::provider_catalog::LoginProviderTarget::Google => {
                 crate::telemetry::record_auth_surface_blocked(
                     provider.id,
@@ -1802,6 +1805,174 @@ impl App {
         });
     }
 
+    fn start_vertex_login(&mut self) {
+        let (verifier, challenge) = crate::auth::oauth::generate_pkce_public();
+        let expected_state = crate::auth::oauth::generate_state_public();
+        let port = crate::auth::vertex::DEFAULT_PORT;
+        let redirect_uri = crate::auth::vertex::redirect_uri(port);
+
+        let auth_url = match crate::auth::vertex::build_auth_url(
+            &redirect_uri,
+            &challenge,
+            &expected_state,
+        ) {
+            Ok(url) => url,
+            Err(e) => {
+                self.push_display_message(DisplayMessage::error(format!(
+                    "Vertex AI login is unavailable: {}",
+                    e
+                )));
+                self.set_status_notice("Login: failed");
+                return;
+            }
+        };
+
+        let qr_section = jcode_terminal_prompt::qr::markdown_section_for_tui(
+            &auth_url,
+            "Scan this on another device if this machine has no browser, then paste the full callback URL or query string here:",
+        )
+        .map(|section| format!("\n\n{section}"))
+        .unwrap_or_default();
+
+        let callback_listener = crate::auth::oauth::bind_callback_listener(port).ok();
+        let callback_available = callback_listener.is_some();
+        let browser_opened = Self::open_auth_browser(&auth_url);
+
+        if let Some(listener) = callback_listener {
+            let verifier_clone = verifier.clone();
+            let expected_state_clone = expected_state.clone();
+            let redirect_clone = redirect_uri.clone();
+            tokio::spawn(async move {
+                let code = tokio::time::timeout(
+                    std::time::Duration::from_secs(300),
+                    crate::auth::oauth::wait_for_callback_async_on_listener(
+                        listener,
+                        &expected_state_clone,
+                    ),
+                )
+                .await
+                .map_err(|_| "Login timed out after 5 minutes. Please try again.".to_string())
+                .and_then(|result| result.map_err(|e| format!("Callback failed: {}", e)));
+
+                match code {
+                    Ok(code) => {
+                        match Self::vertex_token_exchange(
+                            verifier_clone,
+                            code,
+                            Some(expected_state_clone),
+                            redirect_clone,
+                        )
+                        .await
+                        {
+                            Ok(msg) => {
+                                Bus::global().publish(BusEvent::LoginCompleted(LoginCompleted {
+                                    provider: "vertex".to_string(),
+                                    success: true,
+                                    message: msg,
+                                }));
+                            }
+                            Err(e) => {
+                                Bus::global().publish(BusEvent::LoginCompleted(LoginCompleted {
+                                    provider: "vertex".to_string(),
+                                    success: false,
+                                    message: format!("Vertex AI login failed: {}", e),
+                                }));
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        crate::logging::info(&format!(
+                            "Vertex AI automatic callback did not complete: {}",
+                            e
+                        ));
+                    }
+                }
+            });
+        }
+
+        let callback_line = if callback_available {
+            format!(
+                "Waiting for callback on {}... (this will complete automatically)\n",
+                redirect_uri
+            )
+        } else {
+            format!(
+                "Local callback port {} is unavailable, so finish in any browser and paste the full callback URL or query string here.\n",
+                redirect_uri
+            )
+        };
+        let preflight = Self::record_oauth_preflight(
+            "vertex",
+            browser_opened,
+            Some(&redirect_uri),
+            callback_available,
+        );
+
+        self.push_display_message(DisplayMessage::system(format!(
+            "Sign in to Google Cloud Vertex AI.\n\n\
+            {}{}{}\
+            Or open this URL in your browser:\n{}\n\n\
+            If your browser doesn't open automatically, paste the full callback URL or query string after approving access.\n\
+            To cancel, type /cancel.{}{}",
+            callback_line,
+            preflight,
+            if preflight.is_empty() {
+                String::new()
+            } else {
+                "Manual-safe fallback is already active here.\n".to_string()
+            },
+            auth_url,
+            if preflight.is_empty() {
+                String::new()
+            } else {
+                "Manual-safe fallback is already active here.\n".to_string()
+            },
+            qr_section
+        )));
+        self.set_status_notice("Login: vertex waiting...");
+        self.begin_pending_login(PendingLogin::Vertex {
+            verifier,
+            expected_state,
+            redirect_uri,
+        });
+    }
+
+    async fn vertex_token_exchange(
+        verifier: String,
+        input: String,
+        expected_state: Option<String>,
+        redirect_uri: String,
+    ) -> Result<String, String> {
+        let trimmed = input.trim();
+        let tokens =
+            if antigravity_input_requires_state_validation(trimmed, expected_state.as_deref()) {
+                crate::auth::vertex::exchange_callback_input(
+                    &verifier,
+                    trimmed,
+                    expected_state.as_deref(),
+                    &redirect_uri,
+                )
+                .await
+            } else {
+                crate::auth::vertex::exchange_callback_code(trimmed, &verifier, &redirect_uri)
+                    .await
+            }
+            .map_err(|e| e.to_string())?;
+
+        let mut msg = if let Some(email) = tokens.email.as_deref() {
+            format!(
+                "Successfully logged in to Google Cloud Vertex AI! (account: {})",
+                email
+            )
+        } else {
+            "Successfully logged in to Google Cloud Vertex AI!".to_string()
+        };
+        if let Some(project_id) = tokens.project_id.as_deref() {
+            msg.push_str(&format!(" (project: {})", project_id));
+        }
+        Ok(msg)
+    }
+
     async fn antigravity_token_exchange(
         verifier: String,
         input: String,
@@ -1893,6 +2064,13 @@ impl App {
                 return;
             }
             PendingLogin::Antigravity { .. } if !looks_like_oauth_callback_input(trimmed) => {
+                self.push_display_message(DisplayMessage::system(
+                    "Still waiting for the browser callback. Paste the full callback URL or query string if you want to finish manually, or keep waiting for the automatic redirect.".to_string(),
+                ));
+                self.pending_login = Some(pending);
+                return;
+            }
+            PendingLogin::Vertex { .. } if !looks_like_oauth_callback_input(trimmed) => {
                 self.push_display_message(DisplayMessage::system(
                     "Still waiting for the browser callback. Paste the full callback URL or query string if you want to finish manually, or keep waiting for the automatic redirect.".to_string(),
                 ));
@@ -2073,6 +2251,45 @@ impl App {
                 });
                 self.push_display_message(DisplayMessage::system(
                     "Exchanging Antigravity callback for tokens...".to_string(),
+                ));
+            }
+            PendingLogin::Vertex {
+                verifier,
+                expected_state,
+                redirect_uri,
+            } => {
+                self.pending_login = Some(PendingLogin::Exchanging {
+                    provider: "vertex".to_string(),
+                });
+                self.set_status_notice("Login: exchanging...");
+                let input_owned = input.clone();
+                tokio::spawn(async move {
+                    match Self::vertex_token_exchange(
+                        verifier,
+                        input_owned,
+                        Some(expected_state),
+                        redirect_uri,
+                    )
+                    .await
+                    {
+                        Ok(msg) => {
+                            Bus::global().publish(BusEvent::LoginCompleted(LoginCompleted {
+                                provider: "vertex".to_string(),
+                                success: true,
+                                message: msg,
+                            }));
+                        }
+                        Err(e) => {
+                            Bus::global().publish(BusEvent::LoginCompleted(LoginCompleted {
+                                provider: "vertex".to_string(),
+                                success: false,
+                                message: format!("Vertex AI login failed: {}", e),
+                            }));
+                        }
+                    }
+                });
+                self.push_display_message(DisplayMessage::system(
+                    "Exchanging Vertex AI callback for tokens...".to_string(),
                 ));
             }
             PendingLogin::ApiKeyProfile {

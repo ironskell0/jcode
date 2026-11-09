@@ -474,7 +474,7 @@ fn provider_preferred_model_orders(
         // Azure hosts the OpenAI family.
         Some("azure-openai") => &[crate::provider::ALL_OPENAI_MODELS],
         // Gemini (Code Assist OAuth) and Antigravity both serve Gemini models.
-        Some("gemini") | Some("antigravity") => &[ALL_GEMINI_MODELS],
+        Some("gemini") | Some("antigravity") | Some("vertex") => &[ALL_GEMINI_MODELS],
         _ => &[],
     }
 }
@@ -1066,6 +1066,7 @@ fn normalized_login_provider_id(provider_id: &str) -> Option<&'static str> {
         "copilot" => Some("copilot"),
         "gemini" => Some("gemini"),
         "antigravity" => Some("antigravity"),
+        "vertex" => Some("vertex"),
         _ => None,
     }
 }
@@ -1376,6 +1377,7 @@ mod tests {
             ("copilot", "copilot", "GitHub Copilot"),
             ("gemini", "gemini", "Google Gemini"),
             ("antigravity", "antigravity", "Antigravity"),
+            ("vertex", "vertex", "Google Cloud Vertex AI"),
         ] {
             assert_eq!(normalized_auth_provider_id(Some(hint)), Some(normalized));
             assert_eq!(provider_display_label(Some(hint)).as_deref(), Some(label));
@@ -1554,6 +1556,9 @@ mod tests {
                 }
                 crate::provider_catalog::LoginProviderTarget::Antigravity => {
                     Some(("antigravity", "antigravity", "antigravity", "antigravity"))
+                }
+                crate::provider_catalog::LoginProviderTarget::Vertex => {
+                    Some(("vertex", "vertex", "vertex", "vertex"))
                 }
                 _ => None,
             }) else {
@@ -2619,6 +2624,13 @@ mod tests {
                 "antigravity",
                 "https",
                 "Antigravity",
+                &["gemini-2.5-flash", "gemini-2.5-pro", "gemini-3-pro-preview"],
+                "gemini-3-pro-preview",
+            ),
+            (
+                "vertex",
+                "vertex",
+                "Vertex AI",
                 &["gemini-2.5-flash", "gemini-2.5-pro", "gemini-3-pro-preview"],
                 "gemini-3-pro-preview",
             ),

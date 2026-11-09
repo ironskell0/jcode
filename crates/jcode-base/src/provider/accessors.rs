@@ -22,6 +22,13 @@ impl MultiProvider {
             .clone()
     }
 
+    pub(super) fn vertex_provider(&self) -> Option<Arc<dyn Provider>> {
+        self.vertex
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone()
+    }
+
     pub(super) fn gemini_provider(&self) -> Option<Arc<dyn Provider>> {
         self.gemini
             .read()
@@ -72,6 +79,7 @@ impl MultiProvider {
             ActiveProvider::OpenAI => self.openai_provider().is_some(),
             ActiveProvider::Copilot => self.copilot_provider().is_some(),
             ActiveProvider::Antigravity => self.antigravity_provider().is_some(),
+            ActiveProvider::Vertex => self.vertex_provider().is_some(),
             ActiveProvider::Gemini => self.gemini_provider().is_some(),
             ActiveProvider::Cursor => self.cursor_provider().is_some(),
             ActiveProvider::Bedrock => self.bedrock_provider().is_some(),

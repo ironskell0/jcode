@@ -4,6 +4,7 @@ mod account_selection;
 pub mod activation;
 pub mod anthropic;
 pub mod antigravity;
+pub mod vertex;
 pub mod bedrock;
 mod catalog_memo;
 mod catalog_refresh;
@@ -397,6 +398,7 @@ pub struct MultiProvider {
     /// `jcode-provider-antigravity-runtime` and is instantiated through
     /// `external::instantiate_external_provider`.
     antigravity: RwLock<Option<Arc<dyn Provider>>>,
+    vertex: RwLock<Option<Arc<dyn Provider>>>,
     /// Gemini provider (hot-swappable after login). Held as `dyn Provider`:
     /// the concrete runtime lives downstream in `jcode-provider-gemini-runtime`
     /// and is instantiated through `external::instantiate_external_provider`.
@@ -1161,6 +1163,16 @@ impl MultiProvider {
                 self.set_active_provider(ActiveProvider::Antigravity);
                 Ok(())
             }
+            ActiveProvider::Vertex => {
+                let Some(vertex) = self.vertex_provider() else {
+                    anyhow::bail!(
+                        "Vertex AI credentials not available. Run `jcode login --provider vertex` first."
+                    );
+                };
+                vertex.set_model(model).await?;
+                self.set_active_provider(ActiveProvider::Vertex);
+                Ok(())
+            }
             ActiveProvider::Gemini => {
                 let Some(gemini) = self.gemini_provider() else {
                     anyhow::bail!(
@@ -1452,6 +1464,19 @@ impl MultiProvider {
                 .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(antigravity);
         }
 
+        let already_has_vertex = self.vertex_provider().is_some();
+        if !already_has_vertex
+            && crate::auth::vertex::load_tokens().is_ok()
+            && let Some(vertex) =
+                external::instantiate_expected_external_provider(external::VERTEX_RUNTIME)
+        {
+            crate::logging::info("Hot-initialized Vertex AI provider after login");
+            *self
+                .vertex
+                .write()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(vertex);
+        }
+
         let already_has_gemini = self.gemini_provider().is_some();
         if !already_has_gemini
             && crate::auth::gemini::load_tokens().is_ok()
@@ -1508,6 +1533,9 @@ impl MultiProvider {
         }
         if let Some(antigravity) = self.antigravity_provider() {
             self.spawn_post_auth_model_refresh(antigravity, "Antigravity");
+        }
+        if let Some(vertex) = self.vertex_provider() {
+            self.spawn_post_auth_model_refresh(vertex, "Vertex AI");
         }
         if let Some(gemini) = self.gemini_provider() {
             self.spawn_post_auth_model_refresh(gemini, "Gemini");
@@ -1670,6 +1698,7 @@ impl MultiProvider {
             }
             ActiveProvider::Copilot => "copilot",
             ActiveProvider::Antigravity => "antigravity",
+            ActiveProvider::Vertex => "vertex",
             ActiveProvider::Gemini => "gemini",
             ActiveProvider::Cursor => "cursor",
             ActiveProvider::Bedrock => "bedrock",
@@ -1729,6 +1758,7 @@ impl Provider for MultiProvider {
             ActiveProvider::OpenAI => self.openai_provider(),
             ActiveProvider::Copilot => self.copilot_provider(),
             ActiveProvider::Antigravity => self.antigravity_provider(),
+            ActiveProvider::Vertex => self.vertex_provider(),
             ActiveProvider::Gemini => self.gemini_provider(),
             ActiveProvider::Cursor => self.cursor_provider(),
             ActiveProvider::Bedrock => self
@@ -1785,6 +1815,7 @@ impl Provider for MultiProvider {
             ActiveProvider::OpenAI => "OpenAI",
             ActiveProvider::Copilot => "Copilot",
             ActiveProvider::Antigravity => "Antigravity",
+            ActiveProvider::Vertex => "Vertex AI",
             ActiveProvider::Gemini => "Gemini",
             ActiveProvider::Cursor => "Cursor",
             ActiveProvider::Bedrock => "Bedrock",
@@ -1827,6 +1858,10 @@ impl Provider for MultiProvider {
                 .antigravity_provider()
                 .map(|o| o.model())
                 .unwrap_or_else(|| "default".to_string()),
+            ActiveProvider::Vertex => self
+                .vertex_provider()
+                .and_then(|o| o.model())
+                .unwrap_or_else(|| "gemini-2.5-flash".to_string()),
             ActiveProvider::Gemini => self
                 .gemini_provider()
                 .map(|o| o.model())
@@ -1949,6 +1984,7 @@ impl Provider for MultiProvider {
             ActiveProvider::OpenAI => self.openai_provider(),
             ActiveProvider::Copilot => self.copilot_provider(),
             ActiveProvider::Antigravity => self.antigravity_provider(),
+            ActiveProvider::Vertex => self.vertex_provider(),
             ActiveProvider::Gemini => self.gemini_provider(),
             ActiveProvider::Cursor => self.cursor_provider(),
             ActiveProvider::Bedrock => self.bedrock_provider().map(|p| p as Arc<dyn Provider>),
@@ -2016,6 +2052,10 @@ impl Provider for MultiProvider {
                 .unwrap_or(false),
             ActiveProvider::Antigravity => self
                 .antigravity_provider()
+                .map(|provider| provider.supports_image_input())
+                .unwrap_or(false),
+            ActiveProvider::Vertex => self
+                .vertex_provider()
                 .map(|provider| provider.supports_image_input())
                 .unwrap_or(false),
             ActiveProvider::Gemini => self
@@ -2266,6 +2306,10 @@ impl Provider for MultiProvider {
             ActiveProvider::Antigravity => self
                 .antigravity_provider()
                 .map(|antigravity| antigravity.available_models_for_switching())
+                .unwrap_or_default(),
+            ActiveProvider::Vertex => self
+                .vertex_provider()
+                .map(|vertex| vertex.available_models_for_switching())
                 .unwrap_or_default(),
             ActiveProvider::Gemini => self
                 .gemini_provider()
@@ -2569,6 +2613,7 @@ impl Provider for MultiProvider {
                 .antigravity_provider()
                 .map(|o| o.supports_compaction())
                 .unwrap_or(false),
+            ActiveProvider::Vertex => false,
             ActiveProvider::Gemini => self
                 .gemini_provider()
                 .map(|o| o.supports_compaction())
@@ -2603,6 +2648,7 @@ impl Provider for MultiProvider {
                 .antigravity_provider()
                 .map(|o| o.uses_jcode_compaction())
                 .unwrap_or(false),
+            ActiveProvider::Vertex => false,
             ActiveProvider::Gemini => self
                 .gemini_provider()
                 .map(|o| o.uses_jcode_compaction())
@@ -2668,6 +2714,9 @@ impl Provider for MultiProvider {
             }
             ActiveProvider::Antigravity => Err(anyhow::anyhow!(
                 "Antigravity does not support native compaction"
+            )),
+            ActiveProvider::Vertex => Err(anyhow::anyhow!(
+                "Vertex AI does not support native compaction"
             )),
             ActiveProvider::Gemini => {
                 let provider = self.gemini_provider();
@@ -2761,6 +2810,10 @@ impl Provider for MultiProvider {
                 .antigravity_provider()
                 .map(|o| o.context_window())
                 .unwrap_or(DEFAULT_CONTEXT_LIMIT),
+            ActiveProvider::Vertex => self
+                .vertex_provider()
+                .map(|o| o.context_window())
+                .unwrap_or(DEFAULT_CONTEXT_LIMIT),
             ActiveProvider::Gemini => self
                 .gemini_provider()
                 .map(|o| o.context_window())
@@ -2814,6 +2867,11 @@ impl Provider for MultiProvider {
             .read()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .clone();
+        let vertex_provider = self
+            .vertex
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone();
         let gemini_provider = self
             .gemini
             .read()
@@ -2854,6 +2912,7 @@ impl Provider for MultiProvider {
             openai: RwLock::new(openai),
             copilot_api: RwLock::new(copilot_api),
             antigravity: RwLock::new(antigravity_provider),
+            vertex: RwLock::new(vertex_provider),
             gemini: RwLock::new(gemini_provider),
             cursor: RwLock::new(cursor_provider),
             bedrock: RwLock::new(bedrock_provider),
@@ -2927,6 +2986,7 @@ impl Provider for MultiProvider {
             ActiveProvider::OpenAI => None,
             ActiveProvider::Copilot => None,
             ActiveProvider::Antigravity => None,
+            ActiveProvider::Vertex => None,
             ActiveProvider::Gemini => None,
             // Cursor's AgentService keeps its bidirectional stream open until
             // the MCP tool result is sent back over the same stream. Dropping

@@ -30,6 +30,7 @@ mod status_types;
 pub mod test_sandbox;
 pub mod transfer;
 pub mod validation;
+pub mod vertex;
 
 pub(crate) use commands::command_exists;
 #[cfg(test)]
@@ -215,6 +216,7 @@ fn log_auth_status_snapshot(event: &str, status: &AuthStatus) {
             ("bedrock", auth_state_label(status.bedrock)),
             ("copilot", auth_state_label(status.copilot)),
             ("antigravity", auth_state_label(status.antigravity)),
+            ("vertex", auth_state_label(status.vertex)),
             ("gemini", auth_state_label(status.gemini)),
             ("cursor", auth_state_label(status.cursor)),
             ("google", auth_state_label(status.google)),
@@ -247,6 +249,7 @@ fn available_provider_base_readiness(provider: LoginProviderDescriptor) -> AuthR
         | crate::provider_catalog::LoginProviderTarget::Copilot
         | crate::provider_catalog::LoginProviderTarget::Gemini
         | crate::provider_catalog::LoginProviderTarget::Antigravity
+        | crate::provider_catalog::LoginProviderTarget::Vertex
         | crate::provider_catalog::LoginProviderTarget::Google => AuthReadinessLevel::Authenticated,
         _ => AuthReadinessLevel::CredentialPresent,
     }
@@ -438,6 +441,7 @@ impl AuthStatus {
             || self.bedrock == AuthState::Available
             || self.copilot == AuthState::Available
             || self.antigravity == AuthState::Available
+            || self.vertex == AuthState::Available
             || self.gemini == AuthState::Available
             || self.cursor == AuthState::Available
             || self.grok_build == AuthState::Available
@@ -475,6 +479,7 @@ impl AuthStatus {
                 ("copilot", self.copilot.label().to_string()),
                 ("copilot_cred", self.copilot_has_api_token.to_string()),
                 ("antigravity", self.antigravity.label().to_string()),
+                ("vertex", self.vertex.label().to_string()),
                 ("gemini", self.gemini.label().to_string()),
                 ("cursor", self.cursor.label().to_string()),
                 ("grok_build", self.grok_build.label().to_string()),
@@ -508,6 +513,7 @@ impl AuthStatus {
             LoginProviderAuthStateKey::OpenRouterLike => self.openrouter,
             LoginProviderAuthStateKey::Copilot => self.copilot,
             LoginProviderAuthStateKey::Antigravity => self.antigravity,
+            LoginProviderAuthStateKey::Vertex => self.vertex,
             LoginProviderAuthStateKey::Gemini => self.gemini,
             LoginProviderAuthStateKey::Cursor => self.cursor,
             LoginProviderAuthStateKey::GrokBuild => self.grok_build,
@@ -891,6 +897,13 @@ fn build_auth_status_uncached(mode: AuthProbeMode) -> (AuthStatus, Vec<(&'static
                 .map(|tokens| (tokens.is_expired(), tokens.refresh_token.clone())),
         )
     });
+    record_auth_probe_step(&mut timings, "vertex", || {
+        status.vertex = refreshable_token_state(
+            "vertex",
+            vertex::load_tokens()
+                .map(|tokens| (tokens.is_expired(), tokens.refresh_token.clone())),
+        )
+    });
     record_auth_probe_step(&mut timings, "gemini", || {
         // An official Gemini Developer API key is a static credential with no
         // expiry handshake, so treat its presence as immediately Available and
@@ -1203,6 +1216,20 @@ fn assessment_for_key(
                 AuthValidationMethod::TimestampCheck,
             )
         }
+        LoginProviderAuthStateKey::Vertex => {
+            let (source, detail) = summarize_sources(vec![vertex_source()]);
+            (
+                source,
+                detail,
+                if state == AuthState::NotConfigured {
+                    AuthExpiryConfidence::Unknown
+                } else {
+                    AuthExpiryConfidence::Exact
+                },
+                AuthRefreshSupport::Automatic,
+                AuthValidationMethod::TimestampCheck,
+            )
+        }
         LoginProviderAuthStateKey::Gemini => {
             let (source, detail) = summarize_sources(vec![gemini_source()]);
             (
@@ -1448,6 +1475,18 @@ fn antigravity_source() -> Option<(AuthCredentialSource, String)> {
             "trusted external auth import".to_string(),
         )
     })
+}
+
+fn vertex_source() -> Option<(AuthCredentialSource, String)> {
+    if let Ok(path) = crate::auth::vertex::tokens_path()
+        && path.exists()
+    {
+        return Some((
+            AuthCredentialSource::JcodeManagedFile,
+            format!("{}", path.display()),
+        ));
+    }
+    None
 }
 
 fn google_source() -> Option<(AuthCredentialSource, String)> {

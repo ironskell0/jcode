@@ -236,6 +236,10 @@ pub fn register_external_provider_runtimes() {
         || std::sync::Arc::new(jcode_provider_antigravity_runtime::AntigravityProvider::new()),
     );
     crate::provider::external::register_external_provider(
+        crate::provider::external::VERTEX_RUNTIME,
+        || std::sync::Arc::new(jcode_provider_vertex_runtime::VertexProvider::new()),
+    );
+    crate::provider::external::register_external_provider(
         crate::provider::external::ANTHROPIC_RUNTIME,
         || std::sync::Arc::new(jcode_provider_anthropic_runtime::AnthropicProvider::new()),
     );
@@ -781,6 +785,10 @@ mod tests {
             (
                 crate::provider::external::ANTIGRAVITY_RUNTIME,
                 "antigravity",
+            ),
+            (
+                crate::provider::external::VERTEX_RUNTIME,
+                "Vertex AI",
             ),
         ] {
             assert!(

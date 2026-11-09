@@ -118,6 +118,19 @@ impl MultiProvider {
                     ))
                 }
             }
+            ActiveProvider::Vertex => {
+                let vertex = self.vertex_provider();
+                if let Some(vertex) = vertex {
+                    self.bind_provider_session(vertex.as_ref());
+                    vertex
+                        .complete(messages, tools, system, resume_session_id)
+                        .await
+                } else {
+                    Err(anyhow::anyhow!(
+                        "Vertex AI is not available. Run `jcode login --provider vertex`."
+                    ))
+                }
+            }
             ActiveProvider::Gemini => {
                 let gemini = self
                     .gemini
@@ -266,6 +279,25 @@ impl MultiProvider {
                 } else {
                     Err(anyhow::anyhow!(
                         "Antigravity is not available. Run `jcode login --provider antigravity`."
+                    ))
+                }
+            }
+            ActiveProvider::Vertex => {
+                let vertex = self.vertex_provider();
+                if let Some(vertex) = vertex {
+                    self.bind_provider_session(vertex.as_ref());
+                    vertex
+                        .complete_split(
+                            messages,
+                            tools,
+                            system_static,
+                            system_dynamic,
+                            resume_session_id,
+                        )
+                        .await
+                } else {
+                    Err(anyhow::anyhow!(
+                        "Vertex AI is not available. Run `jcode login --provider vertex`."
                     ))
                 }
             }

@@ -65,6 +65,7 @@ pub fn detected_emails() -> Vec<DetectedEmail> {
     for (source, file) in [
         ("Gemini", "gemini_oauth.json"),
         ("Antigravity", "antigravity_oauth.json"),
+        ("Vertex AI", "vertex_oauth.json"),
         ("Google", "google_oauth.json"),
     ] {
         found.push((source, jcode(file).and_then(|v| top_level_email(&v))));

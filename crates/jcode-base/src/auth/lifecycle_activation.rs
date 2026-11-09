@@ -279,6 +279,7 @@ pub(super) fn direct_provider_runtime_ids(
         "copilot" => (RuntimeProviderId::Copilot, ActiveProvider::Copilot),
         "gemini" => (RuntimeProviderId::Gemini, ActiveProvider::Gemini),
         "antigravity" => (RuntimeProviderId::Antigravity, ActiveProvider::Antigravity),
+        "vertex" => (RuntimeProviderId::Vertex, ActiveProvider::Vertex),
         "grok-build" => (RuntimeProviderId::GrokBuild, ActiveProvider::OpenRouter),
         _ => return None,
     })

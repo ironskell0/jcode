@@ -27,6 +27,9 @@ pub const CURSOR_RUNTIME: &str = "cursor";
 /// Registry key for the Antigravity provider runtime.
 pub const ANTIGRAVITY_RUNTIME: &str = "antigravity";
 
+/// Registry key for the Vertex AI provider runtime.
+pub const VERTEX_RUNTIME: &str = "vertex";
+
 /// Registry key for the GitHub Copilot provider runtime.
 pub const COPILOT_RUNTIME: &str = "copilot";
 

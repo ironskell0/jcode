@@ -99,6 +99,7 @@ impl MultiProvider {
             LoginProviderTarget::Copilot => Some("copilot"),
             LoginProviderTarget::Gemini => Some("gemini"),
             LoginProviderTarget::Antigravity => Some("antigravity"),
+            LoginProviderTarget::Vertex => Some("vertex"),
             LoginProviderTarget::AutoImport
             | LoginProviderTarget::Jcode
             | LoginProviderTarget::Azure
@@ -158,6 +159,9 @@ impl MultiProvider {
             ModelRouteApiMethod::OpenAIApiKey => format!("openai-api:{}", bare_name),
             ModelRouteApiMethod::OpenAIOAuth => format!("openai-oauth:{}", bare_name),
             _ if provider_display == "Antigravity" => format!("antigravity:{}", bare_name),
+            _ if provider_display == "Vertex" || provider_display == "Vertex AI" => {
+                format!("vertex:{}", bare_name)
+            }
             ModelRouteApiMethod::OpenAiCompatible { .. } => bare_name.to_string(),
             ModelRouteApiMethod::OpenRouter if provider_display != "auto" => {
                 let model_id = crate::provider::openrouter_catalog_model_id(bare_name)
@@ -523,6 +527,7 @@ impl MultiProvider {
                 ModelRouteApiMethod::Cursor => return format!("cursor:{model}"),
                 ModelRouteApiMethod::Bedrock => return format!("bedrock:{model}"),
                 ModelRouteApiMethod::AntigravityHttps => return format!("antigravity:{model}"),
+                ModelRouteApiMethod::VertexHttps => return format!("vertex:{model}"),
                 ModelRouteApiMethod::OpenAiCompatible { profile_id: None }
                 | ModelRouteApiMethod::CodeAssistOAuth
                 | ModelRouteApiMethod::RemoteCatalog

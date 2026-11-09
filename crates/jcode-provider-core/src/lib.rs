@@ -932,6 +932,7 @@ pub enum RuntimeKey {
     Cursor,
     Bedrock,
     Antigravity,
+    Vertex,
     CodeAssistOAuth,
     RemoteCatalog,
     Current,
@@ -965,6 +966,7 @@ impl RuntimeKey {
             ModelRouteApiMethod::Bedrock => Self::Bedrock,
             ModelRouteApiMethod::CodeAssistOAuth => Self::CodeAssistOAuth,
             ModelRouteApiMethod::AntigravityHttps => Self::Antigravity,
+            ModelRouteApiMethod::VertexHttps => Self::Vertex,
             ModelRouteApiMethod::RemoteCatalog => Self::RemoteCatalog,
             ModelRouteApiMethod::Current => Self::Current,
             ModelRouteApiMethod::GrokBuild => Self::GrokBuild,
@@ -991,6 +993,7 @@ impl RuntimeKey {
             Self::Cursor => "cursor".to_string(),
             Self::Bedrock => "bedrock".to_string(),
             Self::Antigravity => "antigravity".to_string(),
+            Self::Vertex => "vertex".to_string(),
             Self::CodeAssistOAuth => "code-assist-oauth".to_string(),
             Self::RemoteCatalog => "remote-catalog".to_string(),
             Self::Current => "current".to_string(),
@@ -1079,6 +1082,7 @@ impl RouteSelection {
             RuntimeKey::Cursor => format!("cursor:{model}"),
             RuntimeKey::Bedrock => format!("bedrock:{model}"),
             RuntimeKey::Antigravity => format!("antigravity:{model}"),
+            RuntimeKey::Vertex => format!("vertex:{model}"),
             RuntimeKey::GrokBuild => grok_build_model_spec(model),
             RuntimeKey::Gemini
             | RuntimeKey::CodeAssistOAuth
@@ -1129,6 +1133,7 @@ pub enum ModelRouteApiMethod {
     Bedrock,
     CodeAssistOAuth,
     AntigravityHttps,
+    VertexHttps,
     RemoteCatalog,
     Current,
     GrokBuild,
@@ -1183,6 +1188,7 @@ impl ModelRouteApiMethod {
             "bedrock" => Self::Bedrock,
             "code-assist-oauth" => Self::CodeAssistOAuth,
             "https" => Self::AntigravityHttps,
+            "vertex" | "vertexai" | "vertex-https" => Self::VertexHttps,
             "remote-catalog" => Self::RemoteCatalog,
             "current" => Self::Current,
             _ => {

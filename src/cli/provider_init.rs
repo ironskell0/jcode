@@ -147,6 +147,12 @@ pub enum ProviderChoice {
     )]
     GeminiApi,
     Antigravity,
+    #[value(
+        alias = "vertexai",
+        alias = "vertex-ai",
+        alias = "gcp-vertex"
+    )]
+    Vertex,
     Google,
     Auto,
 }
@@ -210,6 +216,7 @@ impl ProviderChoice {
             Self::Gemini => "gemini",
             Self::GeminiApi => "gemini-api",
             Self::Antigravity => "antigravity",
+            Self::Vertex => "vertex",
             Self::Google => "google",
             Self::Auto => "auto",
         }
@@ -437,6 +444,10 @@ const PROVIDER_CHOICE_LOGIN_PROVIDERS: &[(ProviderChoice, LoginProviderDescripto
     (
         ProviderChoice::Antigravity,
         crate::provider_catalog::ANTIGRAVITY_LOGIN_PROVIDER,
+    ),
+    (
+        ProviderChoice::Vertex,
+        crate::provider_catalog::VERTEX_LOGIN_PROVIDER,
     ),
     (
         ProviderChoice::Google,
@@ -676,6 +687,7 @@ struct AutoProviderAvailability {
     has_openai: bool,
     has_copilot: bool,
     has_antigravity: bool,
+    has_vertex: bool,
     has_gemini: bool,
     has_cursor: bool,
     has_openrouter: bool,
@@ -687,6 +699,7 @@ impl AutoProviderAvailability {
             || self.has_openai
             || self.has_copilot
             || self.has_antigravity
+            || self.has_vertex
             || self.has_gemini
             || self.has_cursor
             || self.has_openrouter
@@ -749,6 +762,7 @@ async fn detect_auto_provider_flags() -> AutoProviderAvailability {
         has_openai: auth_status.openai_has_oauth || auth_status.openai_has_api_key,
         has_copilot: auth_status.copilot_has_api_token,
         has_antigravity: auth::antigravity::load_tokens().is_ok(),
+        has_vertex: auth::vertex::load_tokens().is_ok(),
         has_gemini: auth_status.gemini == auth::AuthState::Available,
         has_cursor: auth_status.cursor == auth::AuthState::Available,
         has_openrouter: auth_status.openrouter == auth::AuthState::Available,
@@ -1452,6 +1466,12 @@ pub async fn login_and_bootstrap_provider(
             crate::env::set_var("JCODE_ACTIVE_PROVIDER", "antigravity");
             Arc::new(jcode_provider_antigravity_runtime::AntigravityProvider::new())
         }
+        LoginProviderTarget::Vertex => {
+            disable_subscription_runtime_mode();
+            clear_initial_model_provider();
+            crate::env::set_var("JCODE_ACTIVE_PROVIDER", "vertex");
+            Arc::new(jcode_provider_vertex_runtime::VertexProvider::new())
+        }
         LoginProviderTarget::Google => {
             anyhow::bail!("Google login cannot be used as a model provider bootstrap");
         }
@@ -1710,6 +1730,13 @@ async fn init_provider_with_model_policy(
             clear_initial_model_provider();
             crate::env::set_var("JCODE_ACTIVE_PROVIDER", "antigravity");
             Arc::new(jcode_provider_antigravity_runtime::AntigravityProvider::new())
+        }
+        ProviderChoice::Vertex => {
+            disable_subscription_runtime_mode();
+            init_notice("Using Google Cloud Vertex AI provider");
+            clear_initial_model_provider();
+            crate::env::set_var("JCODE_ACTIVE_PROVIDER", "vertex");
+            Arc::new(jcode_provider_vertex_runtime::VertexProvider::new())
         }
         ProviderChoice::Google => {
             disable_subscription_runtime_mode();

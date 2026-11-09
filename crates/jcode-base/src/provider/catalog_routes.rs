@@ -377,6 +377,7 @@ pub(super) fn multiprovider_model_routes(provider: &MultiProvider) -> Vec<ModelR
     append_copilot_routes(provider, &mut routes);
     append_gemini_routes(provider, &mut routes);
     append_antigravity_routes(provider, &mut routes);
+    append_vertex_routes(provider, &mut routes);
     append_cursor_routes(provider, &mut routes);
     append_bedrock_routes(provider, &mut routes);
 
@@ -755,6 +756,12 @@ fn append_gemini_routes(provider: &MultiProvider, routes: &mut Vec<ModelRoute>) 
 fn append_antigravity_routes(provider: &MultiProvider, routes: &mut Vec<ModelRoute>) {
     if let Some(antigravity) = provider.antigravity_provider() {
         routes.extend(antigravity.model_routes());
+    }
+}
+
+fn append_vertex_routes(provider: &MultiProvider, routes: &mut Vec<ModelRoute>) {
+    if let Some(vertex) = provider.vertex_provider() {
+        routes.extend(vertex.model_routes());
     }
 }
 

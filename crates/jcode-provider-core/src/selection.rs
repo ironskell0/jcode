@@ -11,6 +11,7 @@ pub enum ActiveProvider {
     Cursor,
     Bedrock,
     OpenRouter,
+    Vertex,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
@@ -24,6 +25,7 @@ pub struct ProviderAvailability {
     pub bedrock: bool,
     pub openrouter: bool,
     pub copilot_premium_zero: bool,
+    pub vertex: bool,
 }
 
 impl ProviderAvailability {
@@ -37,6 +39,7 @@ impl ProviderAvailability {
             ActiveProvider::Cursor => self.cursor,
             ActiveProvider::Bedrock => self.bedrock,
             ActiveProvider::OpenRouter => self.openrouter,
+            ActiveProvider::Vertex => self.vertex,
         }
     }
 }
@@ -56,6 +59,8 @@ pub fn auto_default_provider(availability: ProviderAvailability) -> ActiveProvid
         ActiveProvider::Gemini
     } else if availability.cursor {
         ActiveProvider::Cursor
+    } else if availability.vertex {
+        ActiveProvider::Vertex
     } else if availability.bedrock {
         ActiveProvider::Bedrock
     } else if availability.openrouter {
@@ -75,6 +80,7 @@ pub fn parse_provider_hint(value: &str) -> Option<ActiveProvider> {
         "cursor" => Some(ActiveProvider::Cursor),
         "bedrock" | "aws-bedrock" | "aws_bedrock" => Some(ActiveProvider::Bedrock),
         "openrouter" => Some(ActiveProvider::OpenRouter),
+        "vertex" | "vertexai" | "vertex-ai" => Some(ActiveProvider::Vertex),
         _ => None,
     }
 }
@@ -89,6 +95,7 @@ pub fn provider_label(provider: ActiveProvider) -> &'static str {
         ActiveProvider::Cursor => "Cursor",
         ActiveProvider::Bedrock => "AWS Bedrock",
         ActiveProvider::OpenRouter => "OpenRouter",
+        ActiveProvider::Vertex => "Vertex AI",
     }
 }
 
@@ -102,6 +109,7 @@ pub fn provider_key(provider: ActiveProvider) -> &'static str {
         ActiveProvider::Cursor => "cursor",
         ActiveProvider::Bedrock => "bedrock",
         ActiveProvider::OpenRouter => "openrouter",
+        ActiveProvider::Vertex => "vertex",
     }
 }
 
@@ -115,6 +123,7 @@ pub fn provider_from_model_key(key: &str) -> Option<ActiveProvider> {
         "cursor" => Some(ActiveProvider::Cursor),
         "bedrock" => Some(ActiveProvider::Bedrock),
         "openrouter" => Some(ActiveProvider::OpenRouter),
+        "vertex" | "vertexai" => Some(ActiveProvider::Vertex),
         _ => None,
     }
 }
@@ -194,6 +203,10 @@ pub fn explicit_model_provider_prefix(model: &str) -> Option<(ActiveProvider, &'
         Some((ActiveProvider::Bedrock, "bedrock:", rest))
     } else if let Some(rest) = model.strip_prefix("openrouter:") {
         Some((ActiveProvider::OpenRouter, "openrouter:", rest))
+    } else if let Some(rest) = model.strip_prefix("vertex:") {
+        Some((ActiveProvider::Vertex, "vertex:", rest))
+    } else if let Some(rest) = model.strip_prefix("vertexai:") {
+        Some((ActiveProvider::Vertex, "vertexai:", rest))
     } else {
         None
     }
@@ -394,6 +407,16 @@ pub fn fallback_sequence(active: ActiveProvider) -> Vec<ActiveProvider> {
             ActiveProvider::Antigravity,
             ActiveProvider::Gemini,
             ActiveProvider::Cursor,
+        ],
+        ActiveProvider::Vertex => vec![
+            ActiveProvider::Vertex,
+            ActiveProvider::Gemini,
+            ActiveProvider::Claude,
+            ActiveProvider::OpenAI,
+            ActiveProvider::Copilot,
+            ActiveProvider::Antigravity,
+            ActiveProvider::Cursor,
+            ActiveProvider::OpenRouter,
         ],
     }
 }

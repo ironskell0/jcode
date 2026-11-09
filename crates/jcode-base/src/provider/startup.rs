@@ -106,6 +106,7 @@ impl MultiProvider {
         let has_openai_creds = auth::codex::load_credentials().is_ok();
         let has_copilot_api = provider_state.auth_status().copilot_has_api_token;
         let has_antigravity_creds = auth::antigravity::load_tokens().is_ok();
+        let has_vertex_creds = auth::vertex::load_tokens().is_ok();
         let has_gemini_creds = auth::gemini::load_tokens().is_ok() || auth::gemini::has_api_key();
         let has_cursor_creds = provider_state
             .auth_status()
@@ -173,6 +174,12 @@ impl MultiProvider {
             None
         };
 
+        let vertex_provider = if has_vertex_creds {
+            external::instantiate_expected_external_provider(external::VERTEX_RUNTIME)
+        } else {
+            None
+        };
+
         let gemini_provider = if has_gemini_creds {
             external::instantiate_expected_external_provider(external::GEMINI_RUNTIME)
         } else {
@@ -236,6 +243,7 @@ impl MultiProvider {
             claude: anthropic.is_some(),
             copilot: copilot_api.is_some(),
             antigravity: antigravity_provider.is_some(),
+            vertex: vertex_provider.is_some(),
             gemini: gemini_provider.is_some(),
             cursor: cursor_provider.is_some(),
             bedrock: bedrock_provider.is_some(),
@@ -304,6 +312,7 @@ impl MultiProvider {
             openai: RwLock::new(openai),
             copilot_api: RwLock::new(copilot_api),
             antigravity: RwLock::new(antigravity_provider),
+            vertex: RwLock::new(vertex_provider),
             gemini: RwLock::new(gemini_provider),
             cursor: RwLock::new(cursor_provider),
             bedrock: RwLock::new(bedrock_provider),

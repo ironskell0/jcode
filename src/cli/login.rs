@@ -136,6 +136,11 @@ enum PendingScriptableLogin {
         state: String,
         redirect_uri: String,
     },
+    Vertex {
+        verifier: String,
+        state: String,
+        redirect_uri: String,
+    },
     Google {
         verifier: String,
         state: String,
@@ -173,6 +178,7 @@ impl PendingScriptableLogin {
             Self::Openai { .. } => "openai",
             Self::Gemini { .. } => "gemini",
             Self::Antigravity { .. } => "antigravity",
+            Self::Vertex { .. } => "vertex",
             Self::Google { .. } => "google",
             Self::Copilot { .. } => "copilot",
             Self::MuseSubscription { .. } => "muse-subscription",
@@ -388,6 +394,9 @@ pub async fn run_login_provider(
                 .await
                 .map(|_| LoginFlowOutcome::Completed),
             LoginProviderTarget::Antigravity => login_antigravity_flow(options.no_browser)
+                .await
+                .map(|_| LoginFlowOutcome::Completed),
+            LoginProviderTarget::Vertex => login_vertex_flow(options.no_browser)
                 .await
                 .map(|_| LoginFlowOutcome::Completed),
             LoginProviderTarget::Google => login_google_flow(
@@ -1108,6 +1117,33 @@ async fn login_antigravity_flow(no_browser: bool) -> Result<()> {
         eprintln!("Resolved Antigravity project: {}", project_id);
     }
     crate::telemetry::record_auth_success("antigravity", "oauth");
+    Ok(())
+}
+
+async fn login_vertex_flow(no_browser: bool) -> Result<()> {
+    eprintln!("Starting Google Cloud Vertex AI OAuth login...");
+    eprintln!(
+        "jcode will authenticate directly with Google Cloud OAuth using the cloud-platform scope."
+    );
+    eprintln!(
+        "If browser launch fails, or you pass `--no-browser`, jcode will prompt for the callback URL/code instead."
+    );
+    eprintln!();
+
+    let tokens = crate::auth::vertex::login(no_browser).await?;
+
+    eprintln!("Successfully logged in to Google Cloud Vertex AI!");
+    eprintln!(
+        "Tokens saved to {}",
+        crate::auth::vertex::tokens_path()?.display()
+    );
+    if let Some(email) = tokens.email.as_deref() {
+        eprintln!("Google account: {}", email);
+    }
+    if let Some(project_id) = tokens.project_id.as_deref() {
+        eprintln!("Google Cloud Project: {}", project_id);
+    }
+    crate::telemetry::record_auth_success("vertex", "oauth");
     Ok(())
 }
 

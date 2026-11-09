@@ -9,11 +9,12 @@ use super::{App, DisplayMessage, PendingLogin};
 use command::{Operation, Reply, Target, Task};
 use crossterm::event::{KeyCode, KeyModifiers};
 
-const PROVIDERS: [&str; 6] = [
+const PROVIDERS: [&str; 7] = [
     "openai",
     "claude",
     "gemini",
     "antigravity",
+    "vertex",
     "google",
     "copilot",
 ];
@@ -126,7 +127,7 @@ impl App {
                         .any(|entry| entry.id == p)
                 }))
         {
-            self.push_display_message(DisplayMessage::system("SSH login supports: openai, claude, gemini, antigravity, google, copilot. Use /login to choose. For an explicit one-time copy, use /login --import-local openai or /login --import-local claude. No local credentials were accessed."));
+            self.push_display_message(DisplayMessage::system("SSH login supports: openai, claude, gemini, antigravity, vertex, google, copilot. Use /login to choose. For an explicit one-time copy, use /login --import-local openai or /login --import-local claude. No local credentials were accessed."));
             return true;
         }
         let target = match Target::from_env() {

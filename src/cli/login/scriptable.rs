@@ -15,6 +15,7 @@ pub(super) fn auto_scriptable_flow_reason(
             | LoginProviderTarget::OpenAi
             | LoginProviderTarget::Gemini
             | LoginProviderTarget::Antigravity
+            | LoginProviderTarget::Vertex
             | LoginProviderTarget::Google
             | LoginProviderTarget::Copilot
     ) || matches!(
@@ -196,6 +197,28 @@ pub(super) async fn start_scriptable_login(
                 .default_expires_at_ms(),
             )
         }
+        LoginProviderTarget::Vertex => {
+            let (verifier, challenge) = auth::oauth::generate_pkce_public();
+            let state = auth::oauth::generate_state_public();
+            let redirect_uri = auth::vertex::redirect_uri(auth::vertex::DEFAULT_PORT);
+            let auth_url = auth::vertex::build_auth_url(&redirect_uri, &challenge, &state)?;
+            (
+                PendingScriptableLogin::Vertex {
+                    verifier,
+                    state,
+                    redirect_uri,
+                },
+                auth_url,
+                "callback_url",
+                None,
+                PendingScriptableLogin::Vertex {
+                    verifier: String::new(),
+                    state: String::new(),
+                    redirect_uri: String::new(),
+                }
+                .default_expires_at_ms(),
+            )
+        }
         LoginProviderTarget::Google => {
             let creds = auth::google::load_credentials().context(
                 "Google/Gmail scriptable auth requires saved OAuth credentials first. Run `jcode login --provider google` once or save google credentials manually.",
@@ -347,6 +370,14 @@ pub(super) async fn complete_scriptable_login(
         }
         LoginProviderTarget::Antigravity => {
             complete_scriptable_antigravity_login(
+                provider.id,
+                options,
+                require_scriptable_input(input)?,
+            )
+            .await
+        }
+        LoginProviderTarget::Vertex => {
+            complete_scriptable_vertex_login(
                 provider.id,
                 options,
                 require_scriptable_input(input)?,
@@ -594,6 +625,60 @@ pub(super) async fn complete_scriptable_antigravity_login(
     Ok(LoginFlowOutcome::Completed)
 }
 
+pub(super) async fn complete_scriptable_vertex_login(
+    provider_id: &str,
+    options: &LoginOptions,
+    input: ProvidedAuthInput,
+) -> Result<LoginFlowOutcome> {
+    let pending_path = pending_login_path("vertex", options.flow_id.as_deref())?;
+    let PendingScriptableLogin::Vertex {
+        verifier,
+        state,
+        redirect_uri,
+    } = load_pending_login(&pending_path, "vertex")?
+    else {
+        anyhow::bail!("Pending Vertex AI login state is invalid.");
+    };
+
+    let callback_input = match input {
+        ProvidedAuthInput::CallbackUrl(value) => value,
+        ProvidedAuthInput::AuthCode(code) => code,
+    };
+    let tokens = auth::vertex::exchange_callback_input(
+        &verifier,
+        &callback_input,
+        Some(&state),
+        &redirect_uri,
+    )
+    .await?;
+    clear_pending_login(&pending_path);
+    crate::telemetry::record_auth_success(provider_id, "oauth");
+    emit_scriptable_auth_success(
+        options.json,
+        ScriptableAuthSuccess {
+            status: "authenticated",
+            provider: provider_id.to_string(),
+            account_label: None,
+            credentials_path: Some(auth::vertex::tokens_path()?.display().to_string()),
+            email: tokens.email.clone(),
+        },
+    )?;
+    if !options.json {
+        eprintln!("Successfully logged in to Google Cloud Vertex AI!");
+        eprintln!(
+            "Tokens saved to {}",
+            auth::vertex::tokens_path()?.display()
+        );
+        if let Some(email) = tokens.email.as_deref() {
+            eprintln!("Google account: {}", email);
+        }
+        if let Some(project_id) = tokens.project_id.as_deref() {
+            eprintln!("Google Cloud Project: {}", project_id);
+        }
+    }
+    Ok(LoginFlowOutcome::Completed)
+}
+
 pub(super) async fn complete_scriptable_google_login(
     provider_id: &str,
     options: &LoginOptions,
@@ -758,6 +843,7 @@ pub(super) fn pending_login_path_in(
                 | "openai"
                 | "gemini"
                 | "antigravity"
+                | "vertex"
                 | "google"
                 | "copilot"
                 | "muse-subscription"
@@ -787,6 +873,7 @@ pub(super) fn cancel_scriptable_login(
         LoginProviderTarget::OpenAi => "openai",
         LoginProviderTarget::Gemini => "gemini",
         LoginProviderTarget::Antigravity => "antigravity",
+        LoginProviderTarget::Vertex => "vertex",
         LoginProviderTarget::Google => "google",
         LoginProviderTarget::Copilot => "copilot",
         LoginProviderTarget::OpenAiCompatible(profile)

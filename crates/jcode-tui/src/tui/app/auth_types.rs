@@ -29,6 +29,12 @@ pub(crate) enum PendingLogin {
         expected_state: String,
         redirect_uri: String,
     },
+    /// Waiting for user to paste a Vertex AI OAuth callback URL/query.
+    Vertex {
+        verifier: String,
+        expected_state: String,
+        redirect_uri: String,
+    },
     /// Waiting for user to paste an API key for an OpenAI-compatible provider.
     ApiKeyProfile {
         provider_id: String,
@@ -90,6 +96,7 @@ impl PendingLogin {
             Self::OpenAiAccount { .. } => Some(("openai".to_string(), "oauth".to_string())),
             Self::Gemini { .. } => Some(("gemini".to_string(), "oauth".to_string())),
             Self::Antigravity { .. } => Some(("antigravity".to_string(), "oauth".to_string())),
+            Self::Vertex { .. } => Some(("vertex".to_string(), "oauth".to_string())),
             Self::ApiKeyProfile {
                 provider_id,
                 auth_method,

@@ -54,6 +54,8 @@ members = [
     "crates/jcode-provider-bedrock",
     "crates/jcode-provider-anthropic",
     "crates/jcode-provider-antigravity",
+    "crates/jcode-provider-vertex",
+    "crates/jcode-provider-vertex-runtime",
     "crates/jcode-provider-copilot",
     "crates/jcode-provider-openrouter",
     "crates/jcode-provider-openai",
@@ -208,6 +210,7 @@ jcode-provider-doctor = { path = "crates/jcode-provider-doctor" }
 jcode-provider-gemini-runtime = { path = "crates/jcode-provider-gemini-runtime" }
 jcode-provider-cursor-runtime = { path = "crates/jcode-provider-cursor-runtime" }
 jcode-provider-antigravity-runtime = { path = "crates/jcode-provider-antigravity-runtime" }
+jcode-provider-vertex-runtime = { path = "crates/jcode-provider-vertex-runtime" }
 jcode-provider-copilot-runtime = { path = "crates/jcode-provider-copilot-runtime" }
 jcode-provider-openrouter-runtime = { path = "crates/jcode-provider-openrouter-runtime" }
 jcode-provider-anthropic-runtime = { path = "crates/jcode-provider-anthropic-runtime" }

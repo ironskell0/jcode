@@ -1,0 +1,24 @@
+[package]
+name = "jcode-provider-vertex-runtime"
+version = "0.1.0"
+edition = "2024"
+description = "Vertex AI provider runtime for Google Cloud generative models, kept downstream of jcode-base"
+
+[lib]
+name = "jcode_provider_vertex_runtime"
+path = "src/lib.rs"
+
+[dependencies]
+anyhow = "1"
+async-trait = "0.1"
+chrono = { version = "0.4", features = ["serde"] }
+jcode-base = { path = "../jcode-base", default-features = false }
+jcode-message-types = { path = "../jcode-message-types" }
+jcode-provider-vertex = { path = "../jcode-provider-vertex" }
+jcode-provider-core = { path = "../jcode-provider-core" }
+jcode-provider-gemini = { path = "../jcode-provider-gemini" }
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "charset", "http2", "system-proxy", "rustls-tls", "rustls-tls-native-roots"] }
+serde_json = "1"
+tokio = { version = "1", features = ["sync", "time", "rt", "macros"] }
+tokio-stream = "0.1"
+uuid = { version = "1", features = ["v4"] }

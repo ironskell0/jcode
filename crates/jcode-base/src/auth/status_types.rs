@@ -42,6 +42,8 @@ pub struct AuthStatus {
     pub copilot_has_api_token: bool,
     /// Antigravity OAuth configured
     pub antigravity: AuthState,
+    /// Vertex AI OAuth configured
+    pub vertex: AuthState,
     /// Gemini CLI available
     pub gemini: AuthState,
     /// Cursor provider configured via Cursor Agent plus API key or CLI session

@@ -73,6 +73,7 @@ jcode-provider-core = { path = "../jcode-provider-core" }
 # AWS SDK stack; the pure model-metadata/credential-detection layer is always on.
 jcode-provider-bedrock = { path = "../jcode-provider-bedrock", default-features = false }
 jcode-provider-antigravity = { path = "../jcode-provider-antigravity" }
+jcode-provider-vertex = { path = "../jcode-provider-vertex" }
 jcode-provider-copilot = { path = "../jcode-provider-copilot" }
 jcode-provider-openai = { path = "../jcode-provider-openai" }
 jcode-provider-openrouter = { path = "../jcode-provider-openrouter" }

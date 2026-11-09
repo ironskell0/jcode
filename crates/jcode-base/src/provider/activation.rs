@@ -22,6 +22,7 @@ pub enum RuntimeProviderId {
     Copilot,
     Gemini,
     Antigravity,
+    Vertex,
     AutoImport,
 }
 
@@ -42,6 +43,7 @@ impl RuntimeProviderId {
             Self::Copilot => "copilot",
             Self::Gemini => "gemini",
             Self::Antigravity => "antigravity",
+            Self::Vertex => "vertex",
             Self::AutoImport => "auto-import",
         }
     }
@@ -62,6 +64,7 @@ impl RuntimeProviderId {
             Self::Copilot => "GitHub Copilot",
             Self::Gemini => "Gemini",
             Self::Antigravity => "Antigravity",
+            Self::Vertex => "Vertex AI",
             Self::AutoImport => "Auto Import",
         }
     }

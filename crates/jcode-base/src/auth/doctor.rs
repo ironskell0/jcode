@@ -21,6 +21,7 @@ pub fn native_doctor_supports_provider(provider_id: &str) -> bool {
         Some(
             "claude"
                 | "antigravity"
+                | "vertex"
                 | "openai"
                 | "gemini"
                 | "cursor"

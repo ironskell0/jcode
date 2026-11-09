@@ -1225,6 +1225,19 @@ pub const ANTIGRAVITY_LOGIN_PROVIDER: LoginProviderDescriptor = LoginProviderDes
     order: LoginProviderSurfaceOrder::new(Some(12), Some(12), None, Some(12), Some(12)),
 };
 
+pub const VERTEX_LOGIN_PROVIDER: LoginProviderDescriptor = LoginProviderDescriptor {
+    id: "vertex",
+    display_name: "Google Cloud Vertex AI",
+    auth_kind: LoginProviderAuthKind::OAuth,
+    auth_state_key: LoginProviderAuthStateKey::Vertex,
+    auth_status_method: "OAuth",
+    aliases: &["vertexai", "vertex-ai", "gcp-vertex"],
+    menu_detail: "Google Cloud Vertex AI OAuth login",
+    recommended: false,
+    target: LoginProviderTarget::Vertex,
+    order: LoginProviderSurfaceOrder::new(Some(14), Some(13), None, Some(13), Some(14)),
+};
+
 pub const XIAOMI_MIMO_LOGIN_PROVIDER: LoginProviderDescriptor = LoginProviderDescriptor {
     id: "xiaomi-mimo",
     display_name: "Xiaomi MiMo",
@@ -1290,7 +1303,7 @@ pub const GOOGLE_LOGIN_PROVIDER: LoginProviderDescriptor = LoginProviderDescript
     order: LoginProviderSurfaceOrder::new(Some(13), None, None, None, None),
 };
 
-pub(crate) const LOGIN_PROVIDERS: [LoginProviderDescriptor; 57] = [
+pub(crate) const LOGIN_PROVIDERS: [LoginProviderDescriptor; 58] = [
     AUTO_IMPORT_LOGIN_PROVIDER,
     CLAUDE_LOGIN_PROVIDER,
     ANTHROPIC_API_LOGIN_PROVIDER,
@@ -1347,5 +1360,6 @@ pub(crate) const LOGIN_PROVIDERS: [LoginProviderDescriptor; 57] = [
     GEMINI_LOGIN_PROVIDER,
     GEMINI_API_LOGIN_PROVIDER,
     ANTIGRAVITY_LOGIN_PROVIDER,
+    VERTEX_LOGIN_PROVIDER,
     GOOGLE_LOGIN_PROVIDER,
 ];
