@@ -3,7 +3,8 @@ use async_trait::async_trait;
 use jcode_message_types::{ConnectionPhase, Message, StreamEvent, ToolDefinition};
 use jcode_provider_core::{EventStream, ModelRoute, Provider};
 use jcode_provider_gemini::{
-    CodeAssistGenerateResponse, GeminiToolConfig, VertexGenerateContentRequest,
+    CodeAssistGenerateResponse, GeminiFunctionCallingConfig, GeminiToolConfig,
+    VertexGenerateContentRequest,
 };
 use jcode_provider_vertex::{
     AVAILABLE_MODELS, DEFAULT_MODEL, PersistedCatalog, generate_content_api_url,
@@ -197,7 +198,7 @@ impl VertexProvider {
                 None
             } else {
                 Some(GeminiToolConfig {
-                    function_calling_config: json!({ "mode": "AUTO" }),
+                    function_calling_config: GeminiFunctionCallingConfig { mode: "AUTO" },
                 })
             },
             session_id: None,
@@ -245,6 +246,10 @@ impl VertexProvider {
 impl Provider for VertexProvider {
     fn name(&self) -> &str {
         "Vertex AI"
+    }
+
+    fn fork(&self) -> Arc<dyn Provider> {
+        Arc::new(self.clone())
     }
 
     fn model(&self) -> String {
