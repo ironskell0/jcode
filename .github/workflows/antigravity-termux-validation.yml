@@ -41,6 +41,9 @@ jobs:
       - name: Run Vertex provider tests
         run: cargo test -p jcode-provider-vertex-runtime
 
+      - name: Run Antigravity credential logout regression
+        run: cargo test -p jcode-base clear_tokens_removes_only_jcode_managed_antigravity_credentials --lib
+
       - name: Build Jcode for Linux ARM64
         run: cargo build --release --target aarch64-unknown-linux-gnu -p jcode --bin jcode
 
