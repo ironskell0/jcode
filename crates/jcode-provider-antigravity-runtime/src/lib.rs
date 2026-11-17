@@ -32,6 +32,33 @@ use uuid::Uuid;
 
 const DEFAULT_MODEL: &str = "default";
 
+async fn send_with_unauthorized_refresh<Send, SendFuture, Refresh, RefreshFuture>(
+    tokens: antigravity_auth::AntigravityTokens,
+    mut send: Send,
+    refresh: Refresh,
+) -> Result<(
+    antigravity_auth::AntigravityTokens,
+    reqwest::StatusCode,
+    String,
+)>
+where
+    Send: FnMut(String) -> SendFuture,
+    SendFuture: std::future::Future<Output = Result<(reqwest::StatusCode, String)>>,
+    Refresh: FnOnce(antigravity_auth::AntigravityTokens) -> RefreshFuture,
+    RefreshFuture: std::future::Future<Output = Result<antigravity_auth::AntigravityTokens>>,
+{
+    let (status, body) = send(tokens.access_token.clone()).await?;
+    if status != reqwest::StatusCode::UNAUTHORIZED {
+        return Ok((tokens, status, body));
+    }
+
+    let refreshed = refresh(tokens)
+        .await
+        .context("Antigravity rejected its access token and refresh failed")?;
+    let (status, body) = send(refreshed.access_token.clone()).await?;
+    Ok((refreshed, status, body))
+}
+
 pub struct AntigravityProvider {
     client: reqwest::Client,
     model: Arc<RwLock<String>>,
@@ -405,26 +432,55 @@ impl AntigravityProvider {
             ],
         );
 
-        let response = self
-            .client
-            .post(generate_content_api_url())
-            .bearer_auth(&tokens.access_token)
-            .header(reqwest::header::CONTENT_TYPE, "application/json")
-            .header(reqwest::header::USER_AGENT, antigravity_user_agent())
-            .header("x-goog-api-client", X_GOOG_API_CLIENT)
-            .header(
-                "x-goog-request-params",
-                format!("project={}", request.project),
-            )
-            .header("x-goog-client-metadata", client_metadata_header())
-            .json(&request)
-            .send()
-            .await
-            .context("Failed to send Antigravity generateContent request")?;
+        let request_body = serde_json::to_value(&request)
+            .context("Failed to encode Antigravity generateContent request")?;
+        let client = self.client.clone();
+        let endpoint = generate_content_api_url();
+        let project = request.project.clone();
+        let user_agent = antigravity_user_agent();
+        let client_metadata = client_metadata_header();
+        let send = |access_token: String| {
+            let client = client.clone();
+            let endpoint = endpoint.clone();
+            let project = project.clone();
+            let user_agent = user_agent.clone();
+            let client_metadata = client_metadata.clone();
+            let request_body = request_body.clone();
+            async move {
+                let response = client
+                    .post(endpoint)
+                    .bearer_auth(access_token)
+                    .header(reqwest::header::CONTENT_TYPE, "application/json")
+                    .header(reqwest::header::USER_AGENT, user_agent)
+                    .header("x-goog-api-client", X_GOOG_API_CLIENT)
+                    .header("x-goog-request-params", format!("project={project}"))
+                    .header("x-goog-client-metadata", client_metadata)
+                    .json(&request_body)
+                    .send()
+                    .await
+                    .context("Failed to send Antigravity generateContent request")?;
+                let status = response.status();
+                let body = if status.is_success() {
+                    response
+                        .text()
+                        .await
+                        .context("Failed to read Antigravity generateContent response")?
+                } else {
+                    jcode_base::util::http_error_body(response, "HTTP error").await
+                };
+                Ok((status, body))
+            }
+        };
+        let (_, status, body) = send_with_unauthorized_refresh(
+            tokens,
+            send,
+            |tokens| async move {
+                antigravity_auth::refresh_tokens_after_unauthorized(&tokens).await
+            },
+        )
+        .await?;
 
-        if !response.status().is_success() {
-            let status = response.status();
-            let body = jcode_base::util::http_error_body(response, "HTTP error").await;
+        if !status.is_success() {
             anyhow::bail!(
                 "Antigravity generateContent failed (HTTP {}): {}",
                 status,
@@ -432,9 +488,7 @@ impl AntigravityProvider {
             );
         }
 
-        response
-            .json()
-            .await
+        serde_json::from_str(&body)
             .context("Failed to decode Antigravity generateContent response")
     }
 }

@@ -121,6 +121,32 @@ pub fn trust_external_auth_source(source: ExternalAuthSource) -> Result<()> {
     Ok(())
 }
 
+/// Revoke Jcode's consent to external files containing any of the requested
+/// OAuth provider ids. The third-party files remain untouched.
+pub fn revoke_oauth_sources_for_providers(provider_keys: &[&str]) -> Result<usize> {
+    let mut revoked = 0;
+    for source in SOURCES {
+        let path = source.path()?;
+        if !path.is_file() || !source_contains_oauth_provider(source, provider_keys)? {
+            continue;
+        }
+        if crate::config::Config::external_auth_source_allowed_for_path(
+            source.source_id(),
+            &path,
+        ) {
+            crate::config::Config::revoke_external_auth_source_for_path(
+                source.source_id(),
+                &path,
+            )?;
+            revoked += 1;
+        }
+    }
+    if revoked > 0 {
+        super::AuthStatus::invalidate_cache();
+    }
+    Ok(revoked)
+}
+
 pub fn has_any_unconsented_external_auth() -> bool {
     SOURCES
         .into_iter()

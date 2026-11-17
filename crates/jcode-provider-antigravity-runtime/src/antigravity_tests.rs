@@ -6,6 +6,71 @@ use jcode_provider_antigravity::{
 use jcode_provider_core::Provider;
 use tokio_stream::StreamExt;
 
+#[tokio::test]
+async fn antigravity_unauthorized_response_refreshes_and_retries_once() {
+    let initial = jcode_base::auth::antigravity::AntigravityTokens {
+        access_token: "rejected-access".into(),
+        refresh_token: "refresh-token".into(),
+        expires_at: chrono::Utc::now().timestamp_millis() + 3_600_000,
+        email: None,
+        project_id: Some("project-id".into()),
+    };
+    let mut calls = 0;
+    let send = |access_token: String| {
+        calls += 1;
+        let response = if access_token == "rejected-access" {
+            (reqwest::StatusCode::UNAUTHORIZED, "unauthorized".to_string())
+        } else {
+            (reqwest::StatusCode::OK, "{\"ok\":true}".to_string())
+        };
+        async move { Ok(response) }
+    };
+
+    let (tokens, status, body) = send_with_unauthorized_refresh(initial, send, |tokens| async move {
+        assert_eq!(tokens.access_token, "rejected-access");
+        Ok(jcode_base::auth::antigravity::AntigravityTokens {
+            access_token: "fresh-access".into(),
+            refresh_token: tokens.refresh_token,
+            expires_at: tokens.expires_at,
+            email: tokens.email,
+            project_id: tokens.project_id,
+        })
+    })
+    .await
+    .expect("refreshed request succeeds");
+
+    assert_eq!(calls, 2, "the API request is retried exactly once");
+    assert_eq!(tokens.access_token, "fresh-access");
+    assert_eq!(status, reqwest::StatusCode::OK);
+    assert_eq!(body, "{\"ok\":true}");
+}
+
+#[tokio::test]
+async fn antigravity_forbidden_response_does_not_refresh_or_retry() {
+    let initial = jcode_base::auth::antigravity::AntigravityTokens {
+        access_token: "access".into(),
+        refresh_token: "refresh".into(),
+        expires_at: chrono::Utc::now().timestamp_millis() + 3_600_000,
+        email: None,
+        project_id: None,
+    };
+    let mut calls = 0;
+    let send = |_access_token: String| {
+        calls += 1;
+        async { Ok((reqwest::StatusCode::FORBIDDEN, "forbidden".to_string())) }
+    };
+
+    let (_, status, body) = send_with_unauthorized_refresh(initial, send, |_| async {
+        panic!("403 is not an authentication failure and must not refresh")
+    })
+    .await
+    .expect("403 is returned to the normal provider error handler");
+
+    assert_eq!(calls, 1);
+    assert_eq!(status, reqwest::StatusCode::FORBIDDEN);
+    assert_eq!(body, "forbidden");
+}
+
 #[test]
 fn malformed_credentials_report_catalog_failure_without_losing_models() {
     let _guard = jcode_base::storage::lock_test_env();

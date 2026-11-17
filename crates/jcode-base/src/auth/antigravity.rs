@@ -160,6 +160,11 @@ pub fn clear_tokens() -> Result<()> {
     if path.exists() {
         std::fs::remove_file(path)?;
     }
+    crate::auth::external::revoke_oauth_sources_for_providers(&[
+        "google-antigravity",
+        "antigravity",
+    ])?;
+    super::AuthStatus::invalidate_cache();
     Ok(())
 }
 
@@ -183,6 +188,30 @@ pub async fn refresh_tokens(tokens: &AntigravityTokens) -> Result<AntigravityTok
         "antigravity".to_string(),
         || load_tokens().ok(),
         |stored: &AntigravityTokens| !stored.is_expired(),
+        {
+            let observed = tokens.clone();
+            move |stored: Option<AntigravityTokens>| async move {
+                let source = stored.unwrap_or(observed);
+                refresh_tokens_uncoordinated(&source).await
+            }
+        },
+    )
+    .await
+}
+
+/// Refresh credentials after Cloud Code rejects an access token even though its
+/// timestamp has not expired. Concurrent callers reuse a replacement written
+/// by another request instead of spending the same refresh token twice.
+pub async fn refresh_tokens_after_unauthorized(
+    tokens: &AntigravityTokens,
+) -> Result<AntigravityTokens> {
+    let rejected_access_token = tokens.access_token.clone();
+    crate::auth::refresh_coordinator::single_flight(
+        "antigravity".to_string(),
+        || load_tokens().ok(),
+        move |stored: &AntigravityTokens| {
+            stored.access_token != rejected_access_token && !stored.is_expired()
+        },
         {
             let observed = tokens.clone();
             move |stored: Option<AntigravityTokens>| async move {
@@ -239,12 +268,18 @@ async fn refresh_tokens_uncoordinated(tokens: &AntigravityTokens) -> Result<Anti
 pub async fn login(no_browser: bool) -> Result<AntigravityTokens> {
     let (verifier, challenge) = crate::auth::oauth::generate_pkce_public();
     let state = crate::auth::oauth::generate_state_public();
-    let redirect_uri = redirect_uri(DEFAULT_PORT);
+    let callback = if !crate::auth::browser_suppressed(no_browser) {
+        bind_login_callback_listener().ok()
+    } else {
+        None
+    };
+    let redirect_uri = callback
+        .as_ref()
+        .map(|(_, redirect_uri)| redirect_uri.clone())
+        .unwrap_or_else(|| redirect_uri(DEFAULT_PORT));
     let auth_url = build_auth_url(&redirect_uri, &challenge, &state)?;
 
-    if !crate::auth::browser_suppressed(no_browser)
-        && let Ok(listener) = crate::auth::oauth::bind_callback_listener(DEFAULT_PORT)
-    {
+    if let Some((listener, _)) = callback {
         eprintln!("\nOpening browser for Antigravity login...\n");
         eprintln!("If the browser didn't open, visit:\n{}\n", auth_url);
         if let Some(qr) = crate::auth::login_ui::qr_section(
@@ -262,33 +297,34 @@ pub async fn login(no_browser: bool) -> Result<AntigravityTokens> {
                 "Waiting up to 300s for automatic callback on {}",
                 redirect_uri
             );
-            eprintln!(
-                "If the browser lands on a loopback error page instead of returning to jcode, copy the full URL from the address bar and re-run with `--no-browser` to paste it manually."
-            );
-            match tokio::time::timeout(
-                std::time::Duration::from_secs(300),
-                crate::auth::oauth::wait_for_callback_async_on_listener(listener, &state),
-            )
-            .await
-            {
-                Ok(Ok(code)) => {
-                    return exchange_callback_code(&code, &verifier, &redirect_uri).await;
-                }
-                Ok(Err(err)) => {
-                    eprintln!(
-                        "Automatic callback failed ({err}). Falling back to manual callback paste."
-                    );
-                }
-                Err(_) => {
-                    eprintln!(
-                        "Timed out waiting for callback. Falling back to manual callback paste."
-                    );
-                }
-            }
         } else {
             eprintln!(
-                "Couldn't open a browser on this machine. Falling back to manual callback paste.\n"
+                "Open the URL manually; Jcode will still wait for the callback on {}",
+                redirect_uri
             );
+        }
+        eprintln!(
+            "If the browser lands on a loopback error page instead of returning to jcode, copy the full URL from the address bar and paste it here when prompted."
+        );
+        match tokio::time::timeout(
+            std::time::Duration::from_secs(300),
+            crate::auth::oauth::wait_for_callback_async_on_listener(listener, &state),
+        )
+        .await
+        {
+            Ok(Ok(code)) => {
+                return exchange_callback_code(&code, &verifier, &redirect_uri).await;
+            }
+            Ok(Err(err)) => {
+                eprintln!(
+                    "Automatic callback failed ({err}). Falling back to manual callback paste."
+                );
+            }
+            Err(_) => {
+                eprintln!(
+                    "Timed out waiting for callback. Falling back to manual callback paste."
+                );
+            }
         }
     }
 
@@ -564,6 +600,15 @@ pub fn redirect_uri(port: u16) -> String {
     format!("http://{LOOPBACK_HOST}:{port}{REDIRECT_PATH}")
 }
 
+/// Bind an available loopback port for an OAuth login and return the matching
+/// redirect URI. Random ports avoid collisions between retries and concurrent
+/// Jcode instances.
+pub fn bind_login_callback_listener() -> Result<(tokio::net::TcpListener, String)> {
+    let listener = crate::auth::oauth::bind_callback_listener(0)?;
+    let port = listener.local_addr()?.port();
+    Ok((listener, redirect_uri(port)))
+}
+
 fn antigravity_headers(access_token: &str) -> Result<reqwest::header::HeaderMap> {
     use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, HeaderMap, HeaderValue, USER_AGENT};
 
@@ -638,6 +683,47 @@ mod tests {
     }
 
     #[test]
+    fn clear_tokens_revokes_external_antigravity_consent_without_deleting_source() -> anyhow::Result<()> {
+        let _lock = crate::storage::lock_test_env();
+        let temp = tempfile::tempdir()?;
+        let old_home = std::env::var_os("JCODE_HOME");
+        crate::env::set_var("JCODE_HOME", temp.path());
+
+        let source = crate::auth::external::ExternalAuthSource::Pi;
+        let source_path = source.path()?;
+        std::fs::create_dir_all(source_path.parent().expect("source parent"))?;
+        std::fs::write(
+            &source_path,
+            serde_json::to_vec(&serde_json::json!({
+                "antigravity": {
+                    "type": "oauth",
+                    "access": "external-access",
+                    "refresh": "external-refresh",
+                    "expires": chrono::Utc::now().timestamp_millis() + 3_600_000
+                }
+            }))?,
+        )?;
+        crate::auth::external::trust_external_auth_source(source)?;
+        assert!(load_tokens().is_ok());
+
+        clear_tokens()?;
+
+        assert!(source_path.exists(), "logout must not delete external credentials");
+        assert!(load_tokens().is_err(), "Jcode must stop using the external login");
+        assert!(!crate::config::Config::external_auth_source_allowed_for_path(
+            source.source_id(),
+            &source_path,
+        ));
+
+        if let Some(value) = old_home {
+            crate::env::set_var("JCODE_HOME", value);
+        } else {
+            crate::env::remove_var("JCODE_HOME");
+        }
+        Ok(())
+    }
+
+    #[test]
     fn build_auth_url_includes_antigravity_scope_and_redirect() {
         let _guard = lock_test_env();
         crate::env::set_var(
@@ -686,6 +772,14 @@ mod tests {
 
         crate::env::remove_var(CLIENT_ID_ENV);
         crate::env::remove_var(CLIENT_SECRET_ENV);
+    }
+
+    #[tokio::test]
+    async fn login_callback_listener_advertises_its_bound_loopback_port() {
+        let (listener, callback_uri) = bind_login_callback_listener().expect("callback listener");
+        let port = listener.local_addr().expect("listener address").port();
+        assert_ne!(port, 0);
+        assert_eq!(callback_uri, redirect_uri(port));
     }
 
     #[test]

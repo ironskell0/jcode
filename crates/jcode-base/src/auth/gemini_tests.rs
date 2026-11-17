@@ -145,6 +145,42 @@ fn uses_hardcoded_credentials_when_env_missing() {
 }
 
 #[test]
+fn clear_tokens_revokes_gemini_cli_consent_without_deleting_external_credentials() -> anyhow::Result<()> {
+    let _guard = lock_test_env();
+    let temp = tempfile::tempdir()?;
+    let previous = std::env::var_os("JCODE_HOME");
+    crate::env::set_var("JCODE_HOME", temp.path());
+
+    let cli_path = gemini_cli_oauth_path()?;
+    std::fs::create_dir_all(cli_path.parent().expect("Gemini CLI credentials parent"))?;
+    std::fs::write(
+        &cli_path,
+        r#"{"access_token":"external-access","refresh_token":"external-refresh","expiry_date":4102444800000}"#,
+    )?;
+    crate::config::Config::allow_external_auth_source_for_path(
+        GEMINI_CLI_AUTH_SOURCE_ID,
+        &cli_path,
+    )?;
+    assert!(load_tokens().is_ok());
+
+    clear_tokens()?;
+
+    assert!(cli_path.exists(), "logout must preserve Gemini CLI credentials");
+    assert!(load_tokens().is_err(), "Jcode must stop using imported Gemini auth");
+    assert!(!crate::config::Config::external_auth_source_allowed_for_path(
+        GEMINI_CLI_AUTH_SOURCE_ID,
+        &cli_path,
+    ));
+
+    if let Some(previous) = previous {
+        crate::env::set_var("JCODE_HOME", previous);
+    } else {
+        crate::env::remove_var("JCODE_HOME");
+    }
+    Ok(())
+}
+
+#[test]
 fn imports_cli_oauth_tokens_when_native_tokens_missing() {
     let _guard = lock_test_env();
     let temp = tempfile::TempDir::new().expect("tempdir");

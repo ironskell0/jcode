@@ -292,6 +292,25 @@ pub fn clear_tokens() -> Result<()> {
     if path.exists() {
         std::fs::remove_file(path)?;
     }
+
+    let cli_path = gemini_cli_oauth_path()?;
+    if cli_path.is_file()
+        && crate::config::Config::external_auth_source_allowed_for_path(
+            GEMINI_CLI_AUTH_SOURCE_ID,
+            &cli_path,
+        )
+    {
+        crate::config::Config::revoke_external_auth_source_for_path(
+            GEMINI_CLI_AUTH_SOURCE_ID,
+            &cli_path,
+        )?;
+    }
+    crate::auth::external::revoke_oauth_sources_for_providers(&[
+        "google-gemini-cli",
+        "gemini-cli",
+        "gemini",
+    ])?;
+    super::AuthStatus::invalidate_cache();
     Ok(())
 }
 
