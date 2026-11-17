@@ -294,7 +294,9 @@ fn normalize_type_union(out: &mut Map<String, Value>) {
         }
         _ => {
             out.remove("type");
-            let existing_any_of = out.remove("anyOf").and_then(|value| value.as_array().cloned());
+            let existing_any_of = out
+                .remove("anyOf")
+                .and_then(|value| value.as_array().cloned());
             let branches = non_null_types
                 .into_iter()
                 .map(|type_value| {

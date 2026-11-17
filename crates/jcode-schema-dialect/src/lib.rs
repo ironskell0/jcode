@@ -399,14 +399,12 @@ mod tests {
             assert_eq!(out["properties"]["value"]["type"], "string", "{}", spec.id);
             assert_eq!(out["properties"]["value"]["nullable"], true, "{}", spec.id);
             assert_eq!(
-                out["properties"]["items"]["items"]["type"],
-                "integer",
+                out["properties"]["items"]["items"]["type"], "integer",
                 "{}",
                 spec.id
             );
             assert_eq!(
-                out["properties"]["items"]["items"]["nullable"],
-                true,
+                out["properties"]["items"]["items"]["nullable"], true,
                 "{}",
                 spec.id
             );
@@ -427,10 +425,13 @@ mod tests {
 
         assert!(value.get("type").is_none());
         assert_eq!(value["nullable"], true);
-        assert_eq!(value["anyOf"], json!([
-            { "type": "string" },
-            { "type": "integer" }
-        ]));
+        assert_eq!(
+            value["anyOf"],
+            json!([
+                { "type": "string" },
+                { "type": "integer" }
+            ])
+        );
     }
 
     #[test]
