@@ -389,12 +389,48 @@ mod tests {
             }
         });
 
-        let out = dialect::apply(&schema, &registry::GEMINI);
+        for spec in [
+            &registry::GEMINI,
+            &registry::ANTIGRAVITY_CLAUDE,
+            &registry::ANTIGRAVITY_BRIDGE,
+        ] {
+            let out = dialect::apply(&schema, spec);
 
-        assert_eq!(out["properties"]["value"]["type"], "string");
-        assert_eq!(out["properties"]["value"]["nullable"], true);
-        assert_eq!(out["properties"]["items"]["items"]["type"], "integer");
-        assert_eq!(out["properties"]["items"]["items"]["nullable"], true);
+            assert_eq!(out["properties"]["value"]["type"], "string", "{}", spec.id);
+            assert_eq!(out["properties"]["value"]["nullable"], true, "{}", spec.id);
+            assert_eq!(
+                out["properties"]["items"]["items"]["type"],
+                "integer",
+                "{}",
+                spec.id
+            );
+            assert_eq!(
+                out["properties"]["items"]["items"]["nullable"],
+                true,
+                "{}",
+                spec.id
+            );
+        }
+    }
+
+    #[test]
+    fn gemini_preserves_non_nullable_type_alternatives_with_any_of() {
+        let schema = json!({
+            "type": "object",
+            "properties": {
+                "value": { "type": ["string", "integer", "null"] }
+            }
+        });
+
+        let out = dialect::apply(&schema, &registry::GEMINI);
+        let value = &out["properties"]["value"];
+
+        assert!(value.get("type").is_none());
+        assert_eq!(value["nullable"], true);
+        assert_eq!(value["anyOf"], json!([
+            { "type": "string" },
+            { "type": "integer" }
+        ]));
     }
 
     #[test]

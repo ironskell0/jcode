@@ -43,7 +43,7 @@ jobs:
         run: cargo test --locked --target aarch64-unknown-linux-gnu -p jcode-provider-antigravity-runtime --lib antigravity_ -- --nocapture
 
       - name: Test Gemini schema compatibility
-        run: cargo test --locked --target aarch64-unknown-linux-gnu -p jcode-schema-dialect gemini_encodes_nullable_type_unions_as_scalar_type_and_nullable --lib -- --nocapture
+        run: cargo test --locked --target aarch64-unknown-linux-gnu -p jcode-schema-dialect --lib -- --nocapture
 
       - name: Build Jcode for Linux ARM64
         run: cargo build --locked --release --target aarch64-unknown-linux-gnu -p jcode --bin jcode

@@ -49,6 +49,9 @@ pub struct DialectTransforms {
     /// Drop `required` entries naming a property the same object does not
     /// declare, which Gemini rejects outright (#655).
     pub prune_dangling_required: bool,
+    /// Rewrite JSON Schema `type: ["string", "null"]` unions into the
+    /// protobuf-compatible scalar `type` plus `nullable` representation.
+    pub normalize_type_unions: bool,
     /// Rewrite `const: X` as `enum: [X]` for dialects that model only `enum`.
     pub const_as_enum: bool,
     /// Rewrite `oneOf` as `anyOf` for dialects that model only `anyOf`.
@@ -245,6 +248,9 @@ fn walk(schema: &Value, spec: &DialectSpec, quirks: &LearnedQuirks) -> Value {
             if spec.transforms.prune_dangling_required {
                 prune_dangling_required(&mut out);
             }
+            if spec.transforms.normalize_type_unions {
+                normalize_type_union(&mut out);
+            }
             if spec.transforms.merge_all_of_branches {
                 merge_all_of_branches(&mut out);
             }
@@ -256,6 +262,56 @@ fn walk(schema: &Value, spec: &DialectSpec, quirks: &LearnedQuirks) -> Value {
         }
         Value::Array(items) => Value::Array(items.iter().map(|i| walk(i, spec, quirks)).collect()),
         _ => schema.clone(),
+    }
+}
+
+/// Gemini's Schema proto has a scalar `type` field, unlike JSON Schema's
+/// `type` union array. Convert nullable unions to `nullable: true` plus the
+/// remaining type. If several non-null types are present, preserve the union
+/// with `anyOf` branches, which Gemini accepts inside parameter schemas.
+fn normalize_type_union(out: &mut Map<String, Value>) {
+    let Some(Value::Array(types)) = out.get("type") else {
+        return;
+    };
+
+    let nullable = types.iter().any(|value| value.as_str() == Some("null"));
+    let mut non_null_types: Vec<Value> = Vec::new();
+    for value in types {
+        if value.as_str() == Some("null") || !value.is_string() {
+            continue;
+        }
+        if !non_null_types.contains(value) {
+            non_null_types.push(value.clone());
+        }
+    }
+
+    match non_null_types.as_slice() {
+        [only] => {
+            out.insert("type".to_string(), only.clone());
+        }
+        [] => {
+            out.remove("type");
+        }
+        _ => {
+            out.remove("type");
+            let existing_any_of = out.remove("anyOf").and_then(|value| value.as_array().cloned());
+            let branches = non_null_types
+                .into_iter()
+                .map(|type_value| {
+                    let mut branch = serde_json::Map::new();
+                    branch.insert("type".to_string(), type_value);
+                    if let Some(existing_any_of) = &existing_any_of {
+                        branch.insert("anyOf".to_string(), Value::Array(existing_any_of.clone()));
+                    }
+                    Value::Object(branch)
+                })
+                .collect();
+            out.insert("anyOf".to_string(), Value::Array(branches));
+        }
+    }
+
+    if nullable {
+        out.insert("nullable".to_string(), Value::Bool(true));
     }
 }
 

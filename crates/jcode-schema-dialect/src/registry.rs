@@ -101,6 +101,7 @@ pub const GEMINI: DialectSpec = DialectSpec {
         // `anyOf` inside a property is fine, so only the root is widened.
         flatten_top_level_combiners: true,
         prune_dangling_required: true,
+        normalize_type_unions: true,
         const_as_enum: true,
         one_of_as_any_of: true,
         ..DEFAULT_TRANSFORMS
@@ -194,6 +195,7 @@ pub const ANTIGRAVITY_CLAUDE: DialectSpec = DialectSpec {
     transforms: DialectTransforms {
         flatten_all_combiners: true,
         prune_dangling_required: true,
+        normalize_type_unions: true,
         const_as_enum: true,
         one_of_as_any_of: true,
         ..DEFAULT_TRANSFORMS
@@ -224,6 +226,7 @@ pub const ANTIGRAVITY_BRIDGE: DialectSpec = DialectSpec {
     transforms: DialectTransforms {
         flatten_all_combiners: true,
         prune_dangling_required: true,
+        normalize_type_unions: true,
         const_as_enum: true,
         one_of_as_any_of: true,
         ..DEFAULT_TRANSFORMS
@@ -235,6 +238,7 @@ const DEFAULT_TRANSFORMS: DialectTransforms = DialectTransforms {
     flatten_all_combiners: false,
     require_properties_on_objects: false,
     prune_dangling_required: false,
+    normalize_type_unions: false,
     const_as_enum: false,
     one_of_as_any_of: false,
     merge_all_of_branches: false,
