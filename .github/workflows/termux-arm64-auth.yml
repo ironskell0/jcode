@@ -1,0 +1,59 @@
+name: Termux ARM64 auth validation
+
+on:
+  push:
+    branches: [build/termux-antigravity-auth]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_BUILD_RUSTC_WRAPPER: ""
+  RUSTUP_TOOLCHAIN: stable
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-unknown-linux-gnu
+          components: rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: termux-arm64-antigravity-auth
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Test logout and callback regressions
+        run: |
+          cargo test --locked --target aarch64-unknown-linux-gnu -p jcode-base --lib clear_tokens_revokes_ -- --nocapture
+          cargo test --locked --target aarch64-unknown-linux-gnu -p jcode-base --lib login_callback_listener_advertises_ -- --nocapture
+
+      - name: Test Antigravity provider retry behavior
+        run: cargo test --locked --target aarch64-unknown-linux-gnu -p jcode-provider-antigravity-runtime --lib antigravity_ -- --nocapture
+
+      - name: Build Jcode for Linux ARM64
+        run: cargo build --locked --release --target aarch64-unknown-linux-gnu -p jcode --bin jcode
+
+      - name: Package phone-installable binary
+        run: |
+          mkdir -p dist
+          cp target/aarch64-unknown-linux-gnu/release/jcode dist/jcode-linux-aarch64
+          tar -czf jcode-linux-aarch64.tar.gz -C dist jcode-linux-aarch64
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jcode-linux-aarch64-antigravity-auth
+          path: jcode-linux-aarch64.tar.gz
+          if-no-files-found: error
+          retention-days: 7
