@@ -153,6 +153,16 @@ pub fn save_tokens(tokens: &AntigravityTokens) -> Result<()> {
     crate::storage::write_json_secret(&path, tokens)
 }
 
+/// Remove Jcode-managed Antigravity credentials without deleting credentials
+/// belonging to an external CLI auth source.
+pub fn clear_tokens() -> Result<()> {
+    let path = tokens_path()?;
+    if path.exists() {
+        std::fs::remove_file(path)?;
+    }
+    Ok(())
+}
+
 pub fn has_cached_auth() -> bool {
     load_tokens().is_ok()
 }
@@ -604,6 +614,28 @@ fn extract_project_id(value: Option<serde_json::Value>) -> Option<String> {
 mod tests {
     use super::*;
     use crate::storage::lock_test_env;
+
+    #[test]
+    fn clear_tokens_removes_only_jcode_managed_antigravity_credentials() -> anyhow::Result<()> {
+        let _lock = crate::storage::lock_test_env();
+        let temp = tempfile::tempdir()?;
+        let old_home = std::env::var_os("JCODE_HOME");
+        crate::env::set_var("JCODE_HOME", temp.path());
+
+        let path = tokens_path()?;
+        std::fs::create_dir_all(path.parent().expect("token parent"))?;
+        std::fs::write(&path, b"test credentials")?;
+        clear_tokens()?;
+
+        assert!(!path.exists());
+
+        if let Some(value) = old_home {
+            crate::env::set_var("JCODE_HOME", value);
+        } else {
+            crate::env::remove_var("JCODE_HOME");
+        }
+        Ok(())
+    }
 
     #[test]
     fn build_auth_url_includes_antigravity_scope_and_redirect() {

@@ -273,6 +273,10 @@ impl App {
                 crate::auth::gemini::clear_tokens()?;
                 Ok("Logged out of Gemini.".to_string())
             }
+            LoginProviderTarget::Antigravity => {
+                crate::auth::antigravity::clear_tokens()?;
+                Ok("Logged out of Antigravity.".to_string())
+            }
             _ => Ok(format!(
                 "Logout for {} is not automated yet. Remove its saved API key or external CLI session from /account {} settings.",
                 provider.display_name, provider.id
@@ -406,6 +410,10 @@ impl App {
             Ok(()) if cursor_configured => summary.push("Cursor API key".to_string()),
             Ok(()) => {}
             Err(err) => errors.push(format!("Cursor API key: {}", err)),
+        }
+        match crate::auth::antigravity::clear_tokens() {
+            Ok(()) => summary.push("Antigravity".to_string()),
+            Err(err) => errors.push(format!("Antigravity: {}", err)),
         }
         match crate::auth::gemini::clear_tokens() {
             Ok(()) => summary.push("Gemini".to_string()),
