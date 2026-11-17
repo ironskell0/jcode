@@ -208,7 +208,15 @@ pub async fn refresh_tokens_after_unauthorized(
     let rejected_access_token = tokens.access_token.clone();
     crate::auth::refresh_coordinator::single_flight(
         "antigravity".to_string(),
-        || load_tokens().ok(),
+        || match load_tokens() {
+            Ok(stored) => Some(stored),
+            Err(error) => {
+                crate::logging::info(&format!(
+                    "Could not reload Antigravity credentials after a 401; retrying with the observed credentials: {error}"
+                ));
+                None
+            }
+        },
         move |stored: &AntigravityTokens| {
             stored.access_token != rejected_access_token && !stored.is_expired()
         },
@@ -269,7 +277,15 @@ pub async fn login(no_browser: bool) -> Result<AntigravityTokens> {
     let (verifier, challenge) = crate::auth::oauth::generate_pkce_public();
     let state = crate::auth::oauth::generate_state_public();
     let callback = if !crate::auth::browser_suppressed(no_browser) {
-        bind_login_callback_listener().ok()
+        match bind_login_callback_listener() {
+            Ok(callback) => Some(callback),
+            Err(error) => {
+                eprintln!(
+                    "Could not bind the Antigravity callback listener ({error}); falling back to manual callback entry."
+                );
+                None
+            }
+        }
     } else {
         None
     };

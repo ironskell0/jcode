@@ -1680,7 +1680,15 @@ impl App {
     fn start_antigravity_login(&mut self) {
         let (verifier, challenge) = crate::auth::oauth::generate_pkce_public();
         let expected_state = crate::auth::oauth::generate_state_public();
-        let callback = crate::auth::antigravity::bind_login_callback_listener().ok();
+        let callback = match crate::auth::antigravity::bind_login_callback_listener() {
+            Ok(callback) => Some(callback),
+            Err(error) => {
+                crate::logging::info(&format!(
+                    "Antigravity TUI callback listener could not bind; using manual callback entry: {error}"
+                ));
+                None
+            }
+        };
         let redirect_uri = callback
             .as_ref()
             .map(|(_, redirect_uri)| redirect_uri.clone())
