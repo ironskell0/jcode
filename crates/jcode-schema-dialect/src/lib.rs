@@ -377,6 +377,27 @@ mod tests {
     }
 
     #[test]
+    fn gemini_encodes_nullable_type_unions_as_scalar_type_and_nullable() {
+        let schema = json!({
+            "type": "object",
+            "properties": {
+                "value": { "type": ["string", "null"] },
+                "items": {
+                    "type": "array",
+                    "items": { "type": ["integer", "null"] }
+                }
+            }
+        });
+
+        let out = dialect::apply(&schema, &registry::GEMINI);
+
+        assert_eq!(out["properties"]["value"]["type"], "string");
+        assert_eq!(out["properties"]["value"]["nullable"], true);
+        assert_eq!(out["properties"]["items"]["items"]["type"], "integer");
+        assert_eq!(out["properties"]["items"]["items"]["nullable"], true);
+    }
+
+    #[test]
     fn gemini_prunes_required_without_properties_in_array_items() {
         // The original todo.add schema rejected every Antigravity Gemini turn.
         for properties in [None, Some(json!({}))] {
