@@ -130,14 +130,8 @@ pub fn revoke_oauth_sources_for_providers(provider_keys: &[&str]) -> Result<usiz
         if !path.is_file() || !source_contains_oauth_provider(source, provider_keys)? {
             continue;
         }
-        if crate::config::Config::external_auth_source_allowed_for_path(
-            source.source_id(),
-            &path,
-        ) {
-            crate::config::Config::revoke_external_auth_source_for_path(
-                source.source_id(),
-                &path,
-            )?;
+        if crate::config::Config::external_auth_source_allowed_for_path(source.source_id(), &path) {
+            crate::config::Config::revoke_external_auth_source_for_path(source.source_id(), &path)?;
             revoked += 1;
         }
     }

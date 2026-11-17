@@ -321,9 +321,7 @@ pub async fn login(no_browser: bool) -> Result<AntigravityTokens> {
                 );
             }
             Err(_) => {
-                eprintln!(
-                    "Timed out waiting for callback. Falling back to manual callback paste."
-                );
+                eprintln!("Timed out waiting for callback. Falling back to manual callback paste.");
             }
         }
     }
@@ -683,7 +681,8 @@ mod tests {
     }
 
     #[test]
-    fn clear_tokens_revokes_external_antigravity_consent_without_deleting_source() -> anyhow::Result<()> {
+    fn clear_tokens_revokes_external_antigravity_consent_without_deleting_source()
+    -> anyhow::Result<()> {
         let _lock = crate::storage::lock_test_env();
         let temp = tempfile::tempdir()?;
         let old_home = std::env::var_os("JCODE_HOME");
@@ -708,12 +707,20 @@ mod tests {
 
         clear_tokens()?;
 
-        assert!(source_path.exists(), "logout must not delete external credentials");
-        assert!(load_tokens().is_err(), "Jcode must stop using the external login");
-        assert!(!crate::config::Config::external_auth_source_allowed_for_path(
-            source.source_id(),
-            &source_path,
-        ));
+        assert!(
+            source_path.exists(),
+            "logout must not delete external credentials"
+        );
+        assert!(
+            load_tokens().is_err(),
+            "Jcode must stop using the external login"
+        );
+        assert!(
+            !crate::config::Config::external_auth_source_allowed_for_path(
+                source.source_id(),
+                &source_path,
+            )
+        );
 
         if let Some(value) = old_home {
             crate::env::set_var("JCODE_HOME", value);

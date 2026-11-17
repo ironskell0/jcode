@@ -1685,9 +1685,7 @@ impl App {
             .as_ref()
             .map(|(_, redirect_uri)| redirect_uri.clone())
             .unwrap_or_else(|| {
-                crate::auth::antigravity::redirect_uri(
-                    crate::auth::antigravity::DEFAULT_PORT,
-                )
+                crate::auth::antigravity::redirect_uri(crate::auth::antigravity::DEFAULT_PORT)
             });
 
         let auth_url = match crate::auth::antigravity::build_auth_url(

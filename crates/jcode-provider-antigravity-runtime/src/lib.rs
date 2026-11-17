@@ -471,13 +471,9 @@ impl AntigravityProvider {
                 Ok((status, body))
             }
         };
-        let (_, status, body) = send_with_unauthorized_refresh(
-            tokens,
-            send,
-            |tokens| async move {
-                antigravity_auth::refresh_tokens_after_unauthorized(&tokens).await
-            },
-        )
+        let (_, status, body) = send_with_unauthorized_refresh(tokens, send, |tokens| async move {
+            antigravity_auth::refresh_tokens_after_unauthorized(&tokens).await
+        })
         .await?;
 
         if !status.is_success() {
@@ -488,8 +484,7 @@ impl AntigravityProvider {
             );
         }
 
-        serde_json::from_str(&body)
-            .context("Failed to decode Antigravity generateContent response")
+        serde_json::from_str(&body).context("Failed to decode Antigravity generateContent response")
     }
 }
 

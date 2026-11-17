@@ -19,25 +19,29 @@ async fn antigravity_unauthorized_response_refreshes_and_retries_once() {
     let send = |access_token: String| {
         calls += 1;
         let response = if access_token == "rejected-access" {
-            (reqwest::StatusCode::UNAUTHORIZED, "unauthorized".to_string())
+            (
+                reqwest::StatusCode::UNAUTHORIZED,
+                "unauthorized".to_string(),
+            )
         } else {
             (reqwest::StatusCode::OK, "{\"ok\":true}".to_string())
         };
         async move { Ok(response) }
     };
 
-    let (tokens, status, body) = send_with_unauthorized_refresh(initial, send, |tokens| async move {
-        assert_eq!(tokens.access_token, "rejected-access");
-        Ok(jcode_base::auth::antigravity::AntigravityTokens {
-            access_token: "fresh-access".into(),
-            refresh_token: tokens.refresh_token,
-            expires_at: tokens.expires_at,
-            email: tokens.email,
-            project_id: tokens.project_id,
+    let (tokens, status, body) =
+        send_with_unauthorized_refresh(initial, send, |tokens| async move {
+            assert_eq!(tokens.access_token, "rejected-access");
+            Ok(jcode_base::auth::antigravity::AntigravityTokens {
+                access_token: "fresh-access".into(),
+                refresh_token: tokens.refresh_token,
+                expires_at: tokens.expires_at,
+                email: tokens.email,
+                project_id: tokens.project_id,
+            })
         })
-    })
-    .await
-    .expect("refreshed request succeeds");
+        .await
+        .expect("refreshed request succeeds");
 
     assert_eq!(calls, 2, "the API request is retried exactly once");
     assert_eq!(tokens.access_token, "fresh-access");
