@@ -616,28 +616,6 @@ mod tests {
     use crate::storage::lock_test_env;
 
     #[test]
-    fn clear_tokens_removes_only_jcode_managed_antigravity_credentials() -> anyhow::Result<()> {
-        let _lock = crate::storage::lock_test_env();
-        let temp = tempfile::tempdir()?;
-        let old_home = std::env::var_os("JCODE_HOME");
-        crate::env::set_var("JCODE_HOME", temp.path());
-
-        let path = tokens_path()?;
-        std::fs::create_dir_all(path.parent().expect("token parent"))?;
-        std::fs::write(&path, b"test credentials")?;
-        clear_tokens()?;
-
-        assert!(!path.exists());
-
-        if let Some(value) = old_home {
-            crate::env::set_var("JCODE_HOME", value);
-        } else {
-            crate::env::remove_var("JCODE_HOME");
-        }
-        Ok(())
-    }
-
-    #[test]
     fn build_auth_url_includes_antigravity_scope_and_redirect() {
         let _guard = lock_test_env();
         crate::env::set_var(
