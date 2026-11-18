@@ -872,7 +872,10 @@ mod tests {
         assert_eq!(contents[0].role, "user");
         assert_eq!(contents[1].role, "model");
         assert_eq!(contents[1].parts.len(), 2);
-        assert_eq!(contents[1].parts[0].text.as_deref(), Some("I will search now."));
+        assert_eq!(
+            contents[1].parts[0].text.as_deref(),
+            Some("I will search now.")
+        );
         assert_eq!(
             contents[1].parts[1]
                 .function_call
@@ -912,7 +915,10 @@ mod tests {
             Message::user("search both sources"),
             message(
                 Role::Assistant,
-                vec![tool_use("call_a", "search_a"), tool_use("call_b", "search_b")],
+                vec![
+                    tool_use("call_a", "search_a"),
+                    tool_use("call_b", "search_b"),
+                ],
             ),
             Message::tool_result("call_a", "result A", false),
             Message::tool_result("call_b", "result B", false),
