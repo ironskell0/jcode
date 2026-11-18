@@ -307,7 +307,7 @@ pub fn build_contents_with_signature_policy(
     // conversation onto any function call that lacks one. This keeps multi-call
     // turns and synthesized/imported histories replayable instead of hard-failing.
     let mut last_signature: Option<String> = None;
-    messages
+    let serialized = messages
         .iter()
         .filter_map(|message| {
             let role = match message.role {
@@ -422,7 +422,26 @@ pub fn build_contents_with_signature_policy(
                 })
             }
         })
-        .collect()
+        .collect::<Vec<_>>();
+
+    // Session messages are persistence records, not necessarily provider turns.
+    // In particular, parallel tool results and some recovery/compaction paths
+    // can leave consecutive messages with the same role. Gemini interprets
+    // those as separate turns, which can put a `functionCall` model turn after
+    // another model turn instead of after a user/function-response turn. Join
+    // adjacent same-role records into one provider turn without changing part
+    // order or discarding any calls, results, or IDs.
+    let mut contents: Vec<GeminiContent> = Vec::with_capacity(serialized.len());
+    for content in serialized {
+        if let Some(previous) = contents.last_mut()
+            && previous.role == content.role
+        {
+            previous.parts.extend(content.parts);
+        } else {
+            contents.push(content);
+        }
+    }
+    contents
 }
 
 fn tool_name_from_tool_result(tool_use_id: &str, messages: &[Message]) -> String {
@@ -724,6 +743,31 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    fn message(role: Role, content: Vec<ContentBlock>) -> Message {
+        Message {
+            role,
+            content,
+            timestamp: None,
+            tool_duration_ms: None,
+        }
+    }
+
+    fn text(text: &str) -> ContentBlock {
+        ContentBlock::Text {
+            text: text.to_string(),
+            cache_control: None,
+        }
+    }
+
+    fn tool_use(id: &str, name: &str) -> ContentBlock {
+        ContentBlock::ToolUse {
+            id: id.to_string(),
+            name: name.to_string(),
+            input: json!({"query": id}),
+            thought_signature: None,
+        }
+    }
+
     #[test]
     fn response_usage_counts_tool_use_prompts_without_inventing_input() {
         for (metadata, expected) in [
@@ -804,6 +848,102 @@ mod tests {
         }
         let response: VertexGenerateContentResponse = serde_json::from_value(json!({})).unwrap();
         assert!(response.usage_metadata.is_none());
+    }
+
+    #[test]
+    fn filtered_history_records_do_not_split_function_call_turns_or_lose_ids() {
+        let messages = vec![
+            Message::user("look this up"),
+            message(Role::Assistant, vec![text("I will search now.")]),
+            message(
+                Role::Assistant,
+                vec![ContentBlock::ReasoningTrace {
+                    text: "internal history-only trace".to_string(),
+                }],
+            ),
+            message(Role::Assistant, vec![tool_use("call_search", "search")]),
+            Message::tool_result("call_search", "found it", false),
+            message(Role::Assistant, vec![tool_use("call_open", "open")]),
+        ];
+
+        let contents = build_contents(&messages);
+
+        assert_eq!(contents.len(), 4);
+        assert_eq!(contents[0].role, "user");
+        assert_eq!(contents[1].role, "model");
+        assert_eq!(contents[1].parts.len(), 2);
+        assert_eq!(contents[1].parts[0].text.as_deref(), Some("I will search now."));
+        assert_eq!(
+            contents[1].parts[1]
+                .function_call
+                .as_ref()
+                .and_then(|call| call.id.as_deref()),
+            Some("call_search")
+        );
+        assert_eq!(contents[2].role, "user");
+        assert_eq!(
+            contents[2].parts[0]
+                .function_response
+                .as_ref()
+                .and_then(|response| response.id.as_deref()),
+            Some("call_search")
+        );
+        assert_eq!(
+            contents[2].parts[0]
+                .function_response
+                .as_ref()
+                .unwrap()
+                .response["content"],
+            "found it"
+        );
+        assert_eq!(contents[3].role, "model");
+        assert_eq!(
+            contents[3].parts[0]
+                .function_call
+                .as_ref()
+                .and_then(|call| call.id.as_deref()),
+            Some("call_open")
+        );
+    }
+
+    #[test]
+    fn adjacent_parallel_tool_results_share_a_user_turn_and_keep_each_call_id() {
+        let messages = vec![
+            Message::user("search both sources"),
+            message(
+                Role::Assistant,
+                vec![tool_use("call_a", "search_a"), tool_use("call_b", "search_b")],
+            ),
+            Message::tool_result("call_a", "result A", false),
+            Message::tool_result("call_b", "result B", false),
+        ];
+
+        let contents = build_contents(&messages);
+
+        assert_eq!(contents.len(), 3);
+        let calls = contents[1]
+            .parts
+            .iter()
+            .map(|part| part.function_call.as_ref().unwrap().id.as_deref().unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(calls, ["call_a", "call_b"]);
+        assert_eq!(contents[2].role, "user");
+        assert_eq!(contents[2].parts.len(), 2);
+        let responses = contents[2]
+            .parts
+            .iter()
+            .map(|part| {
+                let response = part.function_response.as_ref().unwrap();
+                (
+                    response.id.as_deref().unwrap(),
+                    response.response["content"].as_str().unwrap(),
+                )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            responses,
+            vec![("call_a", "result A"), ("call_b", "result B")]
+        );
     }
 
     #[test]
